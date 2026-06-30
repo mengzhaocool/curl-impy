@@ -69,6 +69,23 @@ if %ERRORLEVEL% neq 0 (
 )
 echo [curl-lib] echo [curl-lib] curl.patch applied.
 
+::: Patch 1a: Disable proxy environment variable reading (fixes CONNECT tunnel bug)
+set "PATCH1A=%PATCHES_DIR%\curl-disable-proxy-env.patch"
+if exist "%PATCH1A%" (
+    echo [curl-lib] Applying curl-disable-proxy-env.patch...
+    "%GIT_EXE%" apply --check "%PATCH1A%" 2>nul
+    if %ERRORLEVEL% neq 0 (
+        "%GIT_EXE%" apply --3way "%PATCH1A%" 2>nul
+    ) else (
+        "%GIT_EXE%" apply "%PATCH1A%"
+    )
+    if %ERRORLEVEL% neq 0 (
+        echo [WARN] curl-disable-proxy-env.patch failed, may already be applied
+    ) else (
+        echo [curl-lib] curl-disable-proxy-env.patch applied.
+    )
+)
+
 ::: Patch 1b: Copy cJSON and impersonate_register source files
 echo [curl-lib] Copying cJSON and impersonate_register source files...
 copy /Y "%PATCHES_DIR%\cJSON.h" "%CURL_SRC_DIR%\lib\cJSON.h" >nul 2>&1

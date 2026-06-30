@@ -1,0 +1,28 @@
+diff --git a/lib/cf-h1-proxy.c b/lib/cf-h1-proxy.c
+--- a/lib/cf-h1-proxy.c
++++ b/lib/cf-h1-proxy.c
+@@ -356,12 +356,17 @@
+   ts->headerlines++;
+
+   /* output debug if that is requested */
+   Curl_debug(data, CURLINFO_HEADER_IN, linep, line_len);
+
+-  /* send the header to the callback */
+-  writetype = CLIENTWRITE_HEADER | CLIENTWRITE_CONNECT |
+-    (ts->headerlines == 1 ? CLIENTWRITE_STATUS : 0);
+-  result = Curl_client_write(data, writetype, linep, line_len);
+-  if(result)
+-    return result;
++  /* curl-impersonate: Do NOT send CONNECT tunnel response headers to
++   * the user's CURLOPT_HEADERFUNCTION callback. These headers
++   * (e.g. "HTTP/1.1 200 Connection established") are an artifact of
++   * the proxy CONNECT tunnel and must not pollute the actual HTTP
++   * response headers. This fixes the bug where CURLINFO_RESPONSE_CODE
++   * returns 0 and real response headers are lost or mixed with
++   * tunnel response headers.
++   * We still call Curl_debug() for verbose output and on_resp_header()
++   * below for status/auth parsing. */
++  (void)writetype;
+
+   result = Curl_bump_headersize(data, line_len, TRUE);
+   if(result)

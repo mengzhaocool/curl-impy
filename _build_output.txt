@@ -1,0 +1,86 @@
+=== STDOUT ===
+============================================================
+  curl-impersonate Windows Build
+  (from existing patched source)
+============================================================
+
+[1/10] Setting up MSVC environment...
+  VS: C:\Program Files\Microsoft Visual Studio\2022\Community
+  vcvarsall: C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat
+  cl.exe: C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\bin\Hostx64\x64\cl.exe
+  Windows SDK: 10.0.26100.0
+  SDK bin: D:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64
+  Removed 2 msys64/mingw entries from PATH
+  LIB=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\lib\x64;D:\Program...
+  INCLUDE=C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.44.35207\include;D:\Program...
+
+[2/10] Detecting build tools...
+
+[detect] Finding build tools...
+  CMAKE: OK C:\vcpkg\downloads\tools\cmake-3.31.10-windows\cmake-3.31.10-windows-x86_64\bin\cmake.exe
+  NINJA: OK C:\vcpkg\downloads\tools\ninja-1.13.2-windows\ninja.exe
+  NASM: OK C:\vcpkg\downloads\tools\nasm\nasm-3.01\nasm.exe
+  GIT: OK C:\Program Files\Git\cmd\git.exe
+  PERL: OK C:\Program Files\Git\usr\bin\perl.exe
+  GO: OK C:\Program Files\Go\bin\go.exe
+  PATH cleaned: removed msys64/mingw entries (0 removed)
+
+[3/10] Building zlib...
+
+=== Building zlib ===
+  zlib already installed, skipping.
+
+[4/10] Building zstd...
+
+=== Building zstd ===
+  zstd already installed, skipping.
+
+[5/10] Building brotli...
+
+=== Building brotli ===
+  brotli already installed, skipping.
+
+[6/10] Building nghttp2...
+
+=== Building nghttp2 ===
+  nghttp2 already installed, skipping.
+
+[7/10] Building nghttp3...
+
+=== Building nghttp3 ===
+  nghttp3 already installed, skipping.
+
+[8/10] Building BoringSSL...
+
+=== Building BoringSSL ===
+  BoringSSL already installed, skipping.
+
+[9/10] Building ngtcp2...
+
+=== Building ngtcp2 ===
+  ngtcp2 already installed, skipping.
+
+[10/10] Applying curl patches...
+
+=== Applying curl patches ===
+  Already patched, skipping.
+
+[11/10] Building curl-impersonate...
+
+=== Building curl-impersonate static lib ===
+  Clearing CMake cache...
+  CMD: "C:\vcpkg\downloads\tools\cmake-3.31.10-windows\cmake-3.31.10-windows-x86_64\bin\cmake.exe" -G Ninja -S "d:\curl-impersonate-8.20.0\deps\curl-8.20.0" -B "d:\curl-impersonate-8.20.0\build\curl" -DCMAKE
+  CMD: "C:\vcpkg\downloads\tools\cmake-3.31.10-windows\cmake-3.31.10-windows-x86_64\bin\cmake.exe" --build "d:\curl-impersonate-8.20.0\build\curl" --config Release
+  ERROR: command failed with code 2
+  STDOUT (last 500): ...ster.c(54): warning C4996: 'strdup': The POSIX name for this item is deprecated. Instead, use the ISO C and C++ conformant name: _strdup. See online help for details.
+[19/112] Building C object lib\CMakeFiles\libcurl_object.dir\mime.c.obj
+[20/112] Building C object lib\CMakeFiles\libcurl_object.dir\mprintf.c.obj
+[21/112] Building C object lib\CMakeFiles\libcurl_object.dir\pop3.c.obj
+[22/112] Building C object lib\CMakeFiles\libcurl_object.dir\multi.c.obj
+ninja: build stopped: subcommand failed.
+
+FATAL: curl-impersonate static lib build failed!
+
+=== STDERR ===
+(empty)
+=== RC: 1 ===

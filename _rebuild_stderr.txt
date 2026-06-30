@@ -1,0 +1,15 @@
+CMake Warning (dev) at CMake/Macros.cmake:75 (find_package):
+  Policy CMP0144 is not set: find_package uses upper-case <PACKAGENAME>_ROOT
+  variables.  Run "cmake --help-policy CMP0144" for policy details.  Use the
+  cmake_policy command to set the policy and suppress this warning.
+
+  CMake variable ZSTD_ROOT is set to:
+
+    d:\curl-impersonate-8.20.0\install\zstd
+
+  For compatibility, find_package is ignoring the variable, but code in a
+  .cmake module might still use it.
+Call Stack (most recent call first):
+  CMakeLists.txt:1003 (curl_dependency_option)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+

@@ -2,7 +2,10 @@
 """Fix BoringSSL compilation errors for MSVC."""
 import os
 
-BORINGSSL_DIR = r"d:\curl-impersonate-8.20.0\win_build\deps\boringssl"
+BORINGSSL_DIR = os.environ.get(
+    "BORINGSSL_SRC_DIR",
+    os.path.join(os.path.dirname(__file__), "..", "deps", "boringssl")
+)
 
 # Fix 1: handshake_client.cc - Span conversion error
 # Replace the ternary chain that uses Span with explicit Span construction

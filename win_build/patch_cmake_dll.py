@@ -1,18 +1,25 @@
 #!/usr/bin/env python3
 # patch_cmake_dll.py - Patch curl's lib/CMakeLists.txt for DLL export
-# Adds .def file linking and forces static linking of all brotli libraries
-# Usage: python patch_cmake_dll.py <cmakelists_path> <brotli_lib_dir>
+# Adds /WHOLEARCHIVE linking for all dependency static libraries so all
+# symbols are exported in the combined DLL.
+#
+# IMPORTANT: We use target_link_options with /WHOLEARCHIVE: prefix because
+# $<LINK_LIBRARY:WHOLE_ARCHIVE,...> generates GCC-style --whole-archive
+# flags that MSVC link.exe does not understand.
+#
+# The WHOLEARCHIVE code must be placed BEFORE the ALIAS definition
+# (add_library ${LIB_NAME} ALIAS ${LIB_SELECTED}) because target_link_options
+# cannot be called on ALIAS targets. We use ${LIB_SHARED} directly.
 
 import sys
 import os
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python patch_cmake_dll.py <cmakelists_path> [brotli_lib_dir]")
+        print("Usage: python patch_cmake_dll.py <cmakelists_path>")
         sys.exit(1)
 
     cmake_path = sys.argv[1]
-    brotli_lib_dir = sys.argv[2] if len(sys.argv) > 2 else None
 
     if not os.path.isfile(cmake_path):
         print(f"[ERROR] File not found: {cmake_path}")
@@ -22,87 +29,115 @@ def main():
         content = f.read()
 
     original = content
-    patched = False
 
-    # 1. Add .def file linking for DLL export
-    if '/DEF:' not in content and 'libcurl-impersonate.def' not in content:
-        def_patch = """
-# Multi-in-one DLL: link .def file for exporting all symbols
-if(WIN32 AND BUILD_SHARED_LIBS AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libcurl-impersonate.def")
-  set_target_properties(${LIB_NAME} PROPERTIES
-    LINK_FLAGS "/DEF:\\"${CMAKE_CURRENT_SOURCE_DIR}/libcurl-impersonate.def\\""
-  )
-endif()
-"""
-        anchor = 'target_link_libraries(${LIB_NAME} PRIVATE ${CURL_LIBS})'
-        if anchor in content:
-            content = content.replace(anchor, def_patch + '\n' + anchor, 1)
-            print('[cmake-patch] Added .def file linking')
-            patched = True
-        else:
-            print('[WARN] Could not find anchor for .def file patch')
+    # Check if already patched
+    if 'wholearchive_patched' in content:
+        print('[cmake-patch] Already patched, skipping')
+        sys.exit(0)
 
-    # 2. Force link all dependency static libraries with /WHOLEARCHIVE
-    # This ensures ALL symbols from BoringSSL, zlib, brotli, nghttp2 are
-    # included in the DLL, not just the ones referenced by curl.
-    if 'WHOLEARCHIVE' not in content:
-        wholearchive_patch = """
-# Multi-in-one DLL: force link all dependency static libraries with /WHOLEARCHIVE
-# This ensures all symbols from BoringSSL, zlib, brotli, nghttp2 are exported
-if(WIN32 AND BUILD_SHARED_LIBS)
-  # BoringSSL - link with /WHOLEARCHIVE to export all symbols
-  if(OPENSSL_LIBRARIES)
-    foreach(_ssl_lib ${OPENSSL_LIBRARIES})
-      if(EXISTS "${_ssl_lib}")
-        target_link_libraries(${LIB_NAME} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,${_ssl_lib}>")
+    # Find the line: target_link_libraries(${LIB_SHARED} PRIVATE ${CURL_LIBS})
+    # Insert WHOLEARCHIVE code AFTER this line (inside the shared lib block,
+    # BEFORE the ALIAS definition)
+    shared_link_anchor = 'target_link_libraries(${LIB_SHARED} PRIVATE ${CURL_LIBS})'
+
+    if shared_link_anchor not in content:
+        print('[ERROR] Could not find anchor for shared lib link line')
+        sys.exit(1)
+
+    # The WHOLEARCHIVE patch - uses target_link_options with /WHOLEARCHIVE: prefix
+    # This is the MSVC-compatible way to force-link all symbols from static libraries.
+    wholearchive_patch = """
+  # [wholearchive_patched] Force link all dependency static libraries with /WHOLEARCHIVE
+  # This ensures ALL symbols from BoringSSL, zlib, brotli, nghttp2, ngtcp2, nghttp3, zstd, libssh2
+  # are included in the DLL, not just the ones referenced by curl.
+  # NOTE: We use target_link_options with /WHOLEARCHIVE: because
+  # $<LINK_LIBRARY:WHOLE_ARCHIVE,...> generates GCC-style --whole-archive flags
+  # that MSVC link.exe does not understand.
+  if(WIN32)
+    set(_wholearchive_libs "")
+
+    # BoringSSL
+    if(OPENSSL_LIBRARIES)
+      foreach(_ssl_lib ${OPENSSL_LIBRARIES})
+        if(EXISTS "${_ssl_lib}")
+          list(APPEND _wholearchive_libs "${_ssl_lib}")
+        endif()
+      endforeach()
+    endif()
+
+    # zlib
+    if(ZLIB_LIBRARY AND EXISTS "${ZLIB_LIBRARY}")
+      list(APPEND _wholearchive_libs "${ZLIB_LIBRARY}")
+    endif()
+
+    # brotli - all three libraries
+    if(CURL_BROTLI AND BROTLIDEC_LIBRARY)
+      get_filename_component(_brotli_lib_dir "${BROTLIDEC_LIBRARY}" DIRECTORY)
+      find_library(BROTLI_ENC_LIB brotlienc PATHS "${_brotli_lib_dir}" NO_DEFAULT_PATH)
+      find_library(BROTLI_DEC_LIB brotlidec PATHS "${_brotli_lib_dir}" NO_DEFAULT_PATH)
+      find_library(BROTLI_COMMON_LIB brotlicommon PATHS "${_brotli_lib_dir}" NO_DEFAULT_PATH)
+      if(BROTLI_ENC_LIB AND EXISTS "${BROTLI_ENC_LIB}")
+        list(APPEND _wholearchive_libs "${BROTLI_ENC_LIB}")
       endif()
+      if(BROTLI_DEC_LIB AND EXISTS "${BROTLI_DEC_LIB}")
+        list(APPEND _wholearchive_libs "${BROTLI_DEC_LIB}")
+      endif()
+      if(BROTLI_COMMON_LIB AND EXISTS "${BROTLI_COMMON_LIB}")
+        list(APPEND _wholearchive_libs "${BROTLI_COMMON_LIB}")
+      endif()
+    endif()
+
+    # nghttp2
+    if(NGHTTP2_LIBRARY AND EXISTS "${NGHTTP2_LIBRARY}")
+      list(APPEND _wholearchive_libs "${NGHTTP2_LIBRARY}")
+    endif()
+
+    # ngtcp2 + crypto
+    if(NGTCP2_LIBRARY AND EXISTS "${NGTCP2_LIBRARY}")
+      list(APPEND _wholearchive_libs "${NGTCP2_LIBRARY}")
+    endif()
+    if(NGTCP2_CRYPTO_BORINGSSL_LIBRARY AND EXISTS "${NGTCP2_CRYPTO_BORINGSSL_LIBRARY}")
+      list(APPEND _wholearchive_libs "${NGTCP2_CRYPTO_BORINGSSL_LIBRARY}")
+    endif()
+
+    # nghttp3
+    if(NGHTTP3_LIBRARY AND EXISTS "${NGHTTP3_LIBRARY}")
+      list(APPEND _wholearchive_libs "${NGHTTP3_LIBRARY}")
+    endif()
+
+    # zstd
+    if(ZSTD_LIBRARY AND EXISTS "${ZSTD_LIBRARY}")
+      list(APPEND _wholearchive_libs "${ZSTD_LIBRARY}")
+    endif()
+
+    # libssh2
+    if(LIBSSH2_LIBRARY AND EXISTS "${LIBSSH2_LIBRARY}")
+      list(APPEND _wholearchive_libs "${LIBSSH2_LIBRARY}")
+    endif()
+
+    # Apply /WHOLEARCHIVE: for each dependency library (MSVC format)
+    foreach(_lib ${_wholearchive_libs})
+      target_link_options(${LIB_SHARED} PRIVATE "/WHOLEARCHIVE:${_lib}")
     endforeach()
-  endif()
 
-  # zlib
-  if(ZLIB_LIBRARY AND EXISTS "${ZLIB_LIBRARY}")
-    target_link_libraries(${LIB_NAME} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,${ZLIB_LIBRARY}>")
+    message(STATUS "DLL /WHOLEARCHIVE linking: ${_wholearchive_libs}")
   endif()
-
-  # brotli - all three libraries
-  if(CURL_BROTLI AND BROTLI_INCLUDE_DIR)
-    get_filename_component(_brotli_lib_dir "${BROTLI_INCLUDE_DIR}/../lib" ABSOLUTE)
-    find_library(BROTLI_ENC_LIB brotlienc-static PATHS "${_brotli_lib_dir}" NO_DEFAULT_PATH)
-    find_library(BROTLI_DEC_LIB brotlidec-static PATHS "${_brotli_lib_dir}" NO_DEFAULT_PATH)
-    find_library(BROTLI_COMMON_LIB brotlicommon-static PATHS "${_brotli_lib_dir}" NO_DEFAULT_PATH)
-    if(BROTLI_ENC_LIB AND EXISTS "${BROTLI_ENC_LIB}")
-      target_link_libraries(${LIB_NAME} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,${BROTLI_ENC_LIB}>")
-    endif()
-    if(BROTLI_DEC_LIB AND EXISTS "${BROTLI_DEC_LIB}")
-      target_link_libraries(${LIB_NAME} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,${BROTLI_DEC_LIB}>")
-    endif()
-    if(BROTLI_COMMON_LIB AND EXISTS "${BROTLI_COMMON_LIB}")
-      target_link_libraries(${LIB_NAME} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,${BROTLI_COMMON_LIB}>")
-    endif()
-  endif()
-
-  # nghttp2
-  if(NGHTTP2_LIBRARY AND EXISTS "${NGHTTP2_LIBRARY}")
-    target_link_libraries(${LIB_NAME} PRIVATE "$<LINK_LIBRARY:WHOLE_ARCHIVE,${NGHTTP2_LIBRARY}>")
-  endif()
-endif()
 """
-        anchor = 'target_link_libraries(${LIB_NAME} PRIVATE ${CURL_LIBS})'
-        if anchor in content:
-            content = content.replace(anchor, wholearchive_patch + '\n' + anchor, 1)
-            print('[cmake-patch] Added /WHOLEARCHIVE linking for all dependencies')
-            patched = True
-        else:
-            content += wholearchive_patch
-            print('[cmake-patch] Added /WHOLEARCHIVE linking (append)')
-            patched = True
+
+    # Insert the patch after the shared lib target_link_libraries line
+    content = content.replace(
+        shared_link_anchor,
+        shared_link_anchor + wholearchive_patch,
+        1
+    )
+    print('[cmake-patch] Added /WHOLEARCHIVE linking for shared library')
 
     if content != original:
         with open(cmake_path, 'w', encoding='utf-8') as f:
             f.write(content)
         print('[cmake-patch] CMakeLists.txt patched successfully')
     else:
-        print('[cmake-patch] No patches needed (already patched or anchors not found)')
+        print('[cmake-patch] No patches applied')
 
     sys.exit(0)
 

@@ -1,0 +1,26 @@
+Curl symbols: 101
+libcrypto: 3153 valid public symbols
+libssl: 609 valid public symbols
+brotlidec: 28 valid public symbols
+brotlienc: 91 valid public symbols
+brotlicommon: 11 valid public symbols
+zlib: 102 valid public symbols
+
+Total dependency symbols: 3978
+
+Written d:\curl-impersonate-8.20.0\deps\curl-8.20.0\lib\libcurl.def
+  Total entries: 4079 (curl: 101, deps: 3978)
+  SSL_*: 637
+  EVP_*: 334
+  BIO_*: 102
+  X509_*: 546
+  RSA_*: 86
+  BrotliDecoder*: 20
+  BrotliEncoder*: 16
+  deflate*: 16
+  inflate*: 23
+  compress*: 14
+  uncompress*: 2
+  zlib*: 2
+  adler32*: 4
+  crc32*: 7

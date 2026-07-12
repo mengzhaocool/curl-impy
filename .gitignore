@@ -1,0 +1,22 @@
+# Build intermediate files (not final output)
+build/
+install/
+deps/
+build_x86/
+install_x86/
+
+# Logs
+*.log
+
+# MSVC env temp file
+_msvc_env.bat
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Temp files
+*.tmp
+*.bak
+*.rej
+*.orig

@@ -1,12 +1,11 @@
 diff --git a/lib/cf-h1-proxy.c b/lib/cf-h1-proxy.c
+index 3c2c837..5ab4cad 100644
 --- a/lib/cf-h1-proxy.c
 +++ b/lib/cf-h1-proxy.c
-@@ -356,12 +356,17 @@
-   ts->headerlines++;
-
+@@ -359,12 +359,16 @@ static CURLcode single_header(struct Curl_cfilter *cf,
    /* output debug if that is requested */
    Curl_debug(data, CURLINFO_HEADER_IN, linep, line_len);
-
+ 
 -  /* send the header to the callback */
 -  writetype = CLIENTWRITE_HEADER | CLIENTWRITE_CONNECT |
 -    (ts->headerlines == 1 ? CLIENTWRITE_STATUS : 0);
@@ -23,6 +22,6 @@ diff --git a/lib/cf-h1-proxy.c b/lib/cf-h1-proxy.c
 +   * We still call Curl_debug() for verbose output and on_resp_header()
 +   * below for status/auth parsing. */
 +  (void)writetype;
-
+ 
    result = Curl_bump_headersize(data, line_len, TRUE);
    if(result)

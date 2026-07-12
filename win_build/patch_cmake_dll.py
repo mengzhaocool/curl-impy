@@ -65,12 +65,18 @@ def main():
       endforeach()
     endif()
 
-    # zlib
+    # NOTE: zstd and libssh2 are NOT included here.
+    # /WHOLEARCHIVE on zstd causes LNK2019 __imp_clock/__imp_qsort_s errors
+    # because zstd_static.lib references CRT functions via dllimport.
+    # zstd has 0 symbols in libcurl-impersonate.def, so it doesn't need it.
+    # libssh2 is disabled (CURL_USE_LIBSSH2=OFF).
+
+    # zlib (has 71 symbols in .def file)
     if(ZLIB_LIBRARY AND EXISTS "${ZLIB_LIBRARY}")
       list(APPEND _wholearchive_libs "${ZLIB_LIBRARY}")
     endif()
 
-    # brotli - all three libraries
+    # brotli - all three libraries (has 37 symbols in .def file)
     if(CURL_BROTLI AND BROTLIDEC_LIBRARY)
       get_filename_component(_brotli_lib_dir "${BROTLIDEC_LIBRARY}" DIRECTORY)
       find_library(BROTLI_ENC_LIB brotlienc PATHS "${_brotli_lib_dir}" NO_DEFAULT_PATH)
@@ -105,22 +111,20 @@ def main():
       list(APPEND _wholearchive_libs "${NGHTTP3_LIBRARY}")
     endif()
 
-    # zstd
-    if(ZSTD_LIBRARY AND EXISTS "${ZSTD_LIBRARY}")
-      list(APPEND _wholearchive_libs "${ZSTD_LIBRARY}")
-    endif()
-
-    # libssh2
-    if(LIBSSH2_LIBRARY AND EXISTS "${LIBSSH2_LIBRARY}")
-      list(APPEND _wholearchive_libs "${LIBSSH2_LIBRARY}")
-    endif()
-
     # Apply /WHOLEARCHIVE: for each dependency library (MSVC format)
     foreach(_lib ${_wholearchive_libs})
       target_link_options(${LIB_SHARED} PRIVATE "/WHOLEARCHIVE:${_lib}")
     endforeach()
 
+    # Disable /OPT:REF and /OPT:ICF to prevent the linker from removing
+    # any unreferenced code/data from WHOLEARCHIVE libraries. Without this,
+    # MSVC still strips unused functions even though the object files are
+    # included by /WHOLEARCHIVE, resulting in a much smaller DLL missing
+    # most of BoringSSL and other dependency code.
+    target_link_options(${LIB_SHARED} PRIVATE "/OPT:NOREF" "/OPT:NOICF")
+
     message(STATUS "DLL /WHOLEARCHIVE linking: ${_wholearchive_libs}")
+    message(STATUS "DLL /OPT:NOREF /OPT:NOICF enabled (no dead code elimination)")
   endif()
 """
 

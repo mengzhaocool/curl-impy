@@ -218,15 +218,15 @@ def apply_patch(src_dir, patch_file, git_exe="git"):
         run([git_exe, "add", "-A"], cwd=src_dir)
         run([git_exe, "commit", "-q", "-m", "baseline", "--allow-empty"], cwd=src_dir)
 
-    # Check and apply
-    result = run([git_exe, "apply", "--check", str(patch_file)], cwd=src_dir, check=False)
+    # Check and apply (use --ignore-whitespace for trailing whitespace tolerance)
+    result = run([git_exe, "apply", "--ignore-whitespace", "--check", str(patch_file)], cwd=src_dir, check=False)
     if result.returncode == 0:
-        run([git_exe, "apply", str(patch_file)], cwd=src_dir)
+        run([git_exe, "apply", "--ignore-whitespace", str(patch_file)], cwd=src_dir)
         log(f"  Applied patch: {patch_file.name}", "OK")
         return True
     else:
         # Try --3way
-        result = run([git_exe, "apply", "--3way", str(patch_file)], cwd=src_dir, check=False)
+        result = run([git_exe, "apply", "--ignore-whitespace", "--3way", str(patch_file)], cwd=src_dir, check=False)
         if result.returncode == 0:
             log(f"  Applied patch (3way): {patch_file.name}", "OK")
             return True
@@ -371,10 +371,37 @@ def extract_sources(deps_dir, archives):
         # Always clean start - remove any stale directories
         rmtree_safe(boringssl_src)
         rmtree_safe(tmp_extract)
-        with zipfile.ZipFile(str(archives["boringssl"]), "r") as z:
-            z.extractall(str(deps_dir))
+        # Extract with retry to handle Windows file locking (antivirus, etc.)
+        max_retries = 5
+        for attempt in range(max_retries):
+            try:
+                with zipfile.ZipFile(str(archives["boringssl"]), "r") as z:
+                    z.extractall(str(deps_dir))
+                break
+            except Exception as e:
+                log(f"  Extract attempt {attempt+1} failed: {e}", "WARN")
+                if attempt < max_retries - 1:
+                    time.sleep(2)
+                    # Clean partial extraction
+                    rmtree_safe(tmp_extract)
+                else:
+                    raise
+        # Clear read-only attributes on all extracted files (Windows fix)
+        import stat as _stat
+        for root, dirs, files in os.walk(str(tmp_extract)):
+            for fname in files:
+                fpath = os.path.join(root, fname)
+                try:
+                    os.chmod(fpath, _stat.S_IWRITE | _stat.S_IREAD)
+                except Exception:
+                    pass
         if tmp_extract.exists():
-            shutil.move(str(tmp_extract), str(boringssl_src))
+            # Use os.rename (same drive) instead of shutil.move to avoid
+            # file copy issues with read-only files
+            try:
+                os.rename(str(tmp_extract), str(boringssl_src))
+            except OSError:
+                shutil.move(str(tmp_extract), str(boringssl_src))
         # Final check
         if not (boringssl_src / "CMakeLists.txt").exists():
             log("  BoringSSL CMakeLists.txt still missing after extraction!", "FATAL")
@@ -490,6 +517,13 @@ def apply_all_patches(deps_dir, git_exe):
     # its own CRT that does not share _environ with the host process)
     if not apply_patch(curl_src, PATCHES_DIR / "curl-disable-proxy-env.patch", git_exe):
         log("curl-disable-proxy-env patch failed, aborting build", "FATAL")
+        sys.exit(1)
+    # Curl patch: suppress CONNECT tunnel response headers
+    # (fixes bug where CONNECT response headers like "HTTP/1.1 200 Connection
+    # established" leak into CURLOPT_HEADERFUNCTION callback, polluting
+    # CURLINFO_RESPONSE_CODE and real HTTP response headers)
+    if not apply_patch(curl_src, PATCHES_DIR / "curl-suppress-connect-headers.patch", git_exe):
+        log("curl-suppress-connect-headers patch failed, aborting build", "FATAL")
         sys.exit(1)
     # Copy new files for curl
     copy_new_files(curl_src, PATCHES_DIR, [

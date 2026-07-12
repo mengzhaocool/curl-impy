@@ -1,8 +1,0 @@
-Microsoft (R) COFF/PE Dumper Version 14.20.27525.0
-Copyright (C) Microsoft Corporation.  All rights reserved.
-
-
-Dump of file d:\curl-impersonate-8.20.0\output\libcurl-impersonate.dll
-
-File Type: DLL
-LINK : fatal error LNK1171: �޷����� mspdbcore.dll (�������: 126)

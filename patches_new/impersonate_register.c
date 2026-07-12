@@ -640,6 +640,86 @@ static CURLcode parse_http2_from_json(cJSON *root,
   return CURLE_OK;
 }
 
+/* Check if a header name is a browser-characteristic header.
+ * Returns TRUE for headers that should be kept in the fingerprint profile,
+ * FALSE for headers that are site/request-specific and should be filtered.
+ *
+ * Filtering rationale (per HTTP standard, header names are case-insensitive):
+ *   - Pseudo headers (:method, :path, :authority, :scheme): set by curl per
+ *     request, must not be baked into the profile.
+ *   - referer/origin: site-specific, vary per navigation.
+ *   - cookie: site/session-specific, must not be baked in.
+ *   - user-agent: KEPT as a browser characteristic header. The built-in
+ *     impersonations[] (chrome100, etc.) include User-Agent in http_headers,
+ *     so custom registrations should do the same for consistency.
+ *   - sec-fetch-site: value depends on request context (cross-site/none/etc).
+ *   - sec-fetch-dest: value depends on request target (document/image/etc).
+ *   - content-length/content-type: set per request body, not a browser trait.
+ *   - host/:authority: set by curl from the URL.
+ */
+static bool is_browser_characteristic_header(const char *name)
+{
+  if(!name || name[0] == ':')
+    return FALSE;
+
+  if(curl_strequal(name, "referer") ||
+     curl_strequal(name, "origin") ||
+     curl_strequal(name, "cookie") ||
+     curl_strequal(name, "sec-fetch-site") ||
+     curl_strequal(name, "sec-fetch-dest") ||
+     curl_strequal(name, "content-length") ||
+     curl_strequal(name, "content-type") ||
+     curl_strequal(name, "host") ||
+     curl_strequal(name, ":authority"))
+    return FALSE;
+
+  return TRUE;
+}
+
+/* Check if a header name already exists in out_headers (case-insensitive).
+ * Per HTTP standard (RFC 7230 §3.2), header field names are case-insensitive.
+ * This prevents duplicate headers when the fingerprint JSON contains
+ * multiple entries for the same logical header name. */
+static bool header_name_already_present(const char *out_headers[],
+                                        int count,
+                                        const char *name)
+{
+  int i;
+  size_t name_len;
+
+  if(!name)
+    return FALSE;
+
+  name_len = strlen(name);
+
+  for(i = 0; i < count; i++) {
+    const char *existing = out_headers[i];
+    const char *colon;
+    size_t existing_len;
+
+    if(!existing)
+      continue;
+
+    colon = strchr(existing, ':');
+    if(!colon)
+      continue;
+
+    existing_len = (size_t)(colon - existing);
+    while(existing_len > 0 &&
+          (existing[existing_len - 1] == ' ' ||
+           existing[existing_len - 1] == '\t'))
+      existing_len--;
+
+    if(existing_len != name_len)
+      continue;
+
+    if(curl_strnequal(existing, name, name_len))
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
 /* Parse HTTP headers from detail.HTTP2Frames.Headers[] */
 static CURLcode parse_headers_from_json(cJSON *detail,
                                         struct custom_impersonations *reg,
@@ -652,12 +732,15 @@ static CURLcode parse_headers_from_json(cJSON *detail,
   *out_header_count = 0;
 
   frames = cJSON_GetObjectItemCaseSensitive(detail, "HTTP2Frames");
-  if(!frames)
+  if(!frames) {
     return CURLE_OK;
+  }
 
   headers_arr = cJSON_GetObjectItemCaseSensitive(frames, "Headers");
-  if(!headers_arr || !cJSON_IsArray(headers_arr))
+  if(!headers_arr || !cJSON_IsArray(headers_arr)) {
     return CURLE_OK;
+  }
+  
 
   cJSON_ArrayForEach(item, headers_arr) {
     cJSON *name_obj, *value_obj;
@@ -677,20 +760,16 @@ static CURLcode parse_headers_from_json(cJSON *detail,
     name = name_obj->valuestring;
     value = value_obj->valuestring;
 
-    /* Skip pseudo headers (start with ':') */
-    if(name[0] == ':')
+    /* Filter: only keep browser-characteristic headers.
+     * Site/request-specific headers (referer, cookie, sec-fetch-site, etc.)
+     * are filtered out at registration time so they never leak into the
+     * fingerprint profile. */
+    if(!is_browser_characteristic_header(name))
       continue;
 
-    /* Skip site-specific headers that depend on the target URL/context.
-     * These should not be baked into the browser fingerprint profile
-     * as they vary per request. */
-    if(curl_strequal(name, "referer") ||
-       curl_strequal(name, "origin") ||
-       curl_strequal(name, ":authority"))
-      continue;
-    /* Skip user-agent since it's handled by the impersonation system
-     * via the browser's UA string, not as a custom header. */
-    if(curl_strequal(name, "user-agent"))
+    /* Filter: skip duplicate header names (case-insensitive per RFC 7230).
+     * This prevents the profile from emitting the same logical header twice. */
+    if(header_name_already_present(out_headers, count, name))
       continue;
 
     /* Format: "Name: Value" */
@@ -954,6 +1033,7 @@ CURLcode curl_easy_impersonate_register(const char *target,
     cJSON *cs_source = detail;
     if(metadata) {
       cs_source = metadata;
+    } else {
     }
     result = parse_conn_state_from_json(cs_source, &httpversion, &ssl_version);
     if(result)

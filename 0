@@ -1,4 +1,0 @@
-  File "<string>", line 1
-    "f='CMakeLists.txt';c=open(f,'r',encoding='utf-8').read();idx=c.find('if(ENABLE_BORINGSSL)');print('Found
-    ^
-SyntaxError: unterminated string literal (detected at line 1)

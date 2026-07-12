@@ -6,105 +6,77 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            platform: linux_x64
-            lib_name: libcurl-impersonate-chrome.so
-          - os: macos-13
-            platform: macos_universal
-            lib_name: libcurl-impersonate-chrome.dylib
-          - os: windows-2022
-            platform: win_x64
-            lib_name: libcurl-impersonate-chrome.dll
-
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install build deps (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build nasm autoconf automake libtool pkg-config
-          # Go for BoringSSL prefix (not needed unless BORINGSSL_PREFIX set)
-          which go || sudo apt-get install -y golang
-
-      - name: Install build deps (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install cmake ninja nasm autoconf automake libtool pkg-config go
-
-      - name: Install build deps (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          choco install -y nasm
-          :: Go
-          choco install -y golang
-
-      - name: Build (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          cd win_build
-          # Use CMake to build all deps + curl-impersonate
-          python build_dll_verify.py curl x64
-          cp output/libcurl-impersonate-chrome.* ../curl_impy/libs/${{ matrix.platform }}/
-
-      - name: Build (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          cd win_build
-          python build_dll_verify.py curl x64
-          copy output\libcurl-impersonate-chrome.dll ..\curl_impy\libs\${{ matrix.platform }}\
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: lib-${{ matrix.platform }}
-          path: curl_impy/libs/${{ matrix.platform }}/${{ matrix.lib_name }}
-
-  package:
-    needs: build
+  build-linux:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build nasm
+      - run: chmod +x ci/build_unix.sh
+      - run: PLATFORM=linux_x64 LIB_EXT=so bash ci/build_unix.sh .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lib-linux_x64
+          path: curl_impy/libs/linux_x64/*.so
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+  build-macos:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: brew install cmake ninja nasm
+      - run: chmod +x ci/build_unix.sh
+      - run: PLATFORM=macos_universal LIB_EXT=dylib CC=clang bash ci/build_unix.sh .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lib-macos_universal
+          path: curl_impy/libs/macos_universal/*.dylib
+
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - shell: cmd
+        run: |
+          choco install -y nasm
+          cd win_build
+          python build_dll_verify.py curl x64
+          copy output\libcurl-impersonate-chrome.dll ..\curl_impy\libs\win_x64\
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lib-win_x64
+          path: curl_impy/libs/win_x64/*.dll
+
+  package:
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
         with:
           path: artifacts
-
-      - name: Place libraries
-        run: |
+      - run: |
           mkdir -p curl_impy/libs/win_x64 curl_impy/libs/linux_x64 curl_impy/libs/macos_universal
-          cp artifacts/lib-win_x64/* curl_impy/libs/win_x64/ || true
-          cp artifacts/lib-linux_x64/* curl_impy/libs/linux_x64/ || true
-          cp artifacts/lib-macos_universal/* curl_impy/libs/macos_universal/ || true
-
-      - name: Build wheel
-        run: |
-          pip install build
-          python -m build --wheel
-
-      - name: Upload wheel
-        uses: actions/upload-artifact@v4
+          cp artifacts/lib-win_x64/* curl_impy/libs/win_x64/ 2>/dev/null || true
+          cp artifacts/lib-linux_x64/* curl_impy/libs/linux_x64/ 2>/dev/null || true
+          cp artifacts/lib-macos_universal/* curl_impy/libs/macos_universal/ 2>/dev/null || true
+          ls -la curl_impy/libs/*/
+      - run: pip install build && python -m build --wheel
+      - uses: actions/upload-artifact@v4
         with:
           name: wheel
           path: dist/*.whl
-
-      - name: Create release
+      - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:

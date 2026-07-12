@@ -83,7 +83,15 @@ fi
 # ============================================================================
 # 3. nghttp2
 # ============================================================================
-if [ ! -f "$INSTALL/nghttp2/lib/libnghttp2.a" ]; then
+# Check for either libnghttp2.a or libnghttp2_static.a
+NGHTTP2_LIB=""
+if [ -f "$INSTALL/nghttp2/lib/libnghttp2.a" ]; then
+  NGHTTP2_LIB="$INSTALL/nghttp2/lib/libnghttp2.a"
+elif [ -f "$INSTALL/nghttp2/lib/libnghttp2_static.a" ]; then
+  NGHTTP2_LIB="$INSTALL/nghttp2/lib/libnghttp2_static.a"
+fi
+
+if [ -z "$NGHTTP2_LIB" ]; then
   echo "=== Building nghttp2 ==="
   cd "$DEPS"
   download "https://github.com/nghttp2/nghttp2/releases/download/v1.56.0/nghttp2-1.56.0.tar.bz2" "nghttp2-1.56.0.tar.bz2"
@@ -95,6 +103,9 @@ if [ ! -f "$INSTALL/nghttp2/lib/libnghttp2.a" ]; then
     -DCMAKE_INSTALL_PREFIX="$INSTALL/nghttp2" "$DEPS/nghttp2-1.56.0"
   cmake --build . && cmake --install . 2>/dev/null || true
   echo "[OK] nghttp2"
+  # Resolve actual library name
+  NGHTTP2_LIB="$INSTALL/nghttp2/lib/libnghttp2.a"
+  [ -f "$NGHTTP2_LIB" ] || NGHTTP2_LIB="$INSTALL/nghttp2/lib/libnghttp2_static.a"
 fi
 
 # ============================================================================
@@ -179,7 +190,7 @@ STATIC_LIBS="$INSTALL/boringssl/lib/libssl.a $INSTALL/boringssl/lib/libcrypto.a 
 $INSTALL/zlib/lib/libz.a \
 $INSTALL/brotli/lib/libbrotlicommon.a $INSTALL/brotli/lib/libbrotlidec.a $INSTALL/brotli/lib/libbrotlienc.a \
 $INSTALL/zstd/lib/libzstd.a \
-$INSTALL/nghttp2/lib/libnghttp2.a"
+$NGHTTP2_LIB"
 
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_FLAGS="$PIC" \
@@ -207,7 +218,7 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DZSTD_LIBRARY="$INSTALL/zstd/lib/libzstd.a" \
   -DUSE_NGHTTP2=ON \
   -DNGHTTP2_INCLUDE_DIR="$INSTALL/nghttp2/include" \
-  -DNGHTTP2_LIBRARY="$INSTALL/nghttp2/lib/libnghttp2.a" \
+  -DNGHTTP2_LIBRARY="$NGHTTP2_LIB" \
   -DNGHTTP2_STATICLIB=ON \
   -DCURL_USE_LIBPSL=OFF \
   -DCURL_USE_LIBIDN2=OFF \

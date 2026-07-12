@@ -68,7 +68,17 @@ fi
 # ============================================================================
 # 2. brotli
 # ============================================================================
-if [ ! -f "$INSTALL/brotli/lib/libbrotlienc.a" ]; then
+# Check for either libbrotlienc.a or libbrotlienc-static.a
+BROTLI_COMMON=""
+BROTLI_DEC=""
+BROTLI_ENC=""
+for suffix in "" "-static"; do
+  [ -f "$INSTALL/brotli/lib/libbrotlicommon${suffix}.a" ] && BROTLI_COMMON="$INSTALL/brotli/lib/libbrotlicommon${suffix}.a"
+  [ -f "$INSTALL/brotli/lib/libbrotlidec${suffix}.a" ] && BROTLI_DEC="$INSTALL/brotli/lib/libbrotlidec${suffix}.a"
+  [ -f "$INSTALL/brotli/lib/libbrotlienc${suffix}.a" ] && BROTLI_ENC="$INSTALL/brotli/lib/libbrotlienc${suffix}.a"
+done
+
+if [ -z "$BROTLI_ENC" ]; then
   echo "=== Building brotli ==="
   cd "$DEPS"
   download "https://github.com/google/brotli/archive/refs/tags/v1.0.9.tar.gz" "brotli-1.0.9.tar.gz"
@@ -78,6 +88,12 @@ if [ ! -f "$INSTALL/brotli/lib/libbrotlienc.a" ]; then
     -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL/brotli" "$DEPS/brotli-1.0.9"
   cmake --build . && cmake --install . 2>/dev/null || true
   echo "[OK] brotli"
+  # Resolve actual library names
+  for suffix in "" "-static"; do
+    [ -f "$INSTALL/brotli/lib/libbrotlicommon${suffix}.a" ] && BROTLI_COMMON="$INSTALL/brotli/lib/libbrotlicommon${suffix}.a"
+    [ -f "$INSTALL/brotli/lib/libbrotlidec${suffix}.a" ] && BROTLI_DEC="$INSTALL/brotli/lib/libbrotlidec${suffix}.a"
+    [ -f "$INSTALL/brotli/lib/libbrotlienc${suffix}.a" ] && BROTLI_ENC="$INSTALL/brotli/lib/libbrotlienc${suffix}.a"
+  done
 fi
 
 # ============================================================================
@@ -185,10 +201,10 @@ echo "[OK] All patches applied"
 # ============================================================================
 rm -rf "$BUILD/curl" && mkdir -p "$BUILD/curl" && cd "$BUILD/curl"
 
-# Static libraries to link into the shared lib
+# Static libraries to link into the shared lib (use resolved paths)
 STATIC_LIBS="$INSTALL/boringssl/lib/libssl.a $INSTALL/boringssl/lib/libcrypto.a \
 $INSTALL/zlib/lib/libz.a \
-$INSTALL/brotli/lib/libbrotlicommon.a $INSTALL/brotli/lib/libbrotlidec.a $INSTALL/brotli/lib/libbrotlienc.a \
+$BROTLI_COMMON $BROTLI_DEC $BROTLI_ENC \
 $INSTALL/zstd/lib/libzstd.a \
 $NGHTTP2_LIB"
 
@@ -196,6 +212,7 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_FLAGS="$PIC" \
   -DCMAKE_C_COMPILER="${CC:-gcc}" \
   -DCMAKE_CXX_COMPILER="${CXX:-g++}" \
+  -DCMAKE_PREFIX_PATH="$INSTALL/boringssl;$INSTALL/zlib;$INSTALL/brotli;$INSTALL/zstd;$INSTALL/nghttp2" \
   -DBUILD_SHARED_LIBS=ON \
   -DBUILD_TESTING=OFF \
   -DBUILD_CURL_EXE=OFF \
@@ -210,27 +227,28 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DZLIB_LIBRARY="$INSTALL/zlib/lib/libz.a" \
   -DCURL_BROTLI=ON \
   -DBROTLI_INCLUDE_DIR="$INSTALL/brotli/include" \
-  -DBROTLICOMMON_LIBRARY="$INSTALL/brotli/lib/libbrotlicommon.a" \
-  -DBROTLIDEC_LIBRARY="$INSTALL/brotli/lib/libbrotlidec.a" \
-  -DBROTLIENC_LIBRARY="$INSTALL/brotli/lib/libbrotlienc.a" \
+  -DBROTLICOMMON_LIBRARY="$BROTLI_COMMON" \
+  -DBROTLIDEC_LIBRARY="$BROTLI_DEC" \
+  -DBROTLIENC_LIBRARY="$BROTLI_ENC" \
   -DCURL_ZSTD=ON \
   -DZSTD_INCLUDE_DIR="$INSTALL/zstd/include" \
   -DZSTD_LIBRARY="$INSTALL/zstd/lib/libzstd.a" \
   -DUSE_NGHTTP2=ON \
   -DNGHTTP2_INCLUDE_DIR="$INSTALL/nghttp2/include" \
   -DNGHTTP2_LIBRARY="$NGHTTP2_LIB" \
-  -DNGHTTP2_STATICLIB=ON \
   -DCURL_USE_LIBPSL=OFF \
   -DCURL_USE_LIBIDN2=OFF \
   -DCURL_USE_LIBSSH2=OFF \
   -DCURL_USE_LIBRTMP=OFF \
-  -DUSE_LIBRTMP=OFF \
   -DCURL_DISABLE_LDAP=ON \
   -DCMAKE_SHARED_LINKER_FLAGS="$LD_WRAP_START $STATIC_LIBS $LD_WRAP_END $LD_EXTRA" \
   "$CURL_SRC"
 
-# Build (try both target names)
-cmake --build . --target libcurl || cmake --build . --target libcurl_shared || cmake --build .
+# Build (try multiple target names)
+cmake --build . --target libcurl || \
+cmake --build . --target libcurl_shared || \
+cmake --build . --target lib || \
+cmake --build .
 
 # ============================================================================
 # 8. Copy output library

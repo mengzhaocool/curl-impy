@@ -159,6 +159,7 @@ if [ -f "$PATCHES/curl-impersonate-$CURL_VERSION.patch" ]; then
 fi
 
 # Copy source files into lib/ directory
+cp "$PATCHES/impersonate.c" lib/
 cp "$PATCHES/impersonate_register.c" "$PATCHES/impersonate_register.h" lib/
 cp "$PATCHES/impersonate.h" lib/
 cp "$PATCHES/cJSON.c" "$PATCHES/cJSON.h" lib/

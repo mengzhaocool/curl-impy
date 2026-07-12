@@ -45,11 +45,12 @@ jobs:
           python-version: '3.12'
       - shell: cmd
         run: |
-          set PATH=C:\Program Files\NASM;%PATH%
-          where nasm || choco install nasm -y --no-progress
+          where nasm 2>nul
+          if errorlevel 1 choco install nasm -y --no-progress
+          set "PATH=C:\Program Files\NASM;%PATH%"
           cd win_build
           python build_dll_verify.py curl x64
-          copy output\libcurl-impersonate-chrome.dll ..\curl_impy\libs\win_x64\
+          copy output\libcurl-impersonate-chrome.dll "..\curl_impy\libs\win_x64\"
       - uses: actions/upload-artifact@v4
         with:
           name: lib-win_x64

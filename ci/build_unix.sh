@@ -221,28 +221,19 @@ python3 "$PATCHES/apply_h2_fingerprint_patch.py" "$CURL_SRC"
 python3 "$PATCHES/apply_no_env_no_proxy.py" "$CURL_SRC"
 echo "[OK] All patches applied"
 
-# Fix C type conflict: header declares CURL* but impl uses struct Curl_easy*
-# The declaration is in include/curl/easy.h (NOT curl.h)
-sed -i '/CURL_EXTERN CURLcode curl_easy_impersonate(CURL/,/default_headers);/d' include/curl/easy.h
-# Fallback: line-by-line delete
-grep -q "curl_easy_impersonate(CURL" include/curl/easy.h && {
-  sed -i '/curl_easy_impersonate(CURL/d' include/curl/easy.h
-  sed -i '/int default_headers);/d' include/curl/easy.h
-}
-echo "[OK] Type conflict resolved (removed decl from easy.h)"
-
-# Fix: http.c's Curl_http_merge_headers uses macros from impersonate.h
-# (strncasecompare, Curl_safefree, aprintf) but doesn't include it.
-# Also add forward declaration for the function itself.
+# Fix: base patch uses strcasecompare/Curl_safefree/aprintf macros (from
+# impersonate.h) in multiple .c files without including impersonate.h.
+# MSVC has these as built-in, gcc doesn't. Force-include impersonate.h globally.
+# Also remove conflicting curl_easy_impersonate decl from easy.h (CURL* vs struct Curl_easy*)
 python3 -c "
-f = 'lib/http.c'
+f = 'include/curl/easy.h'
 with open(f, 'r') as fh: c = fh.read()
-old = '#include \"http.h\"'
-new = old + '\n#include \"impersonate.h\"\nCURLcode Curl_http_merge_headers(struct Curl_easy *data);'
-c = c.replace(old, new, 1)
+import re
+# Remove the 2-line declaration
+c = re.sub(r'CURL_EXTERN CURLcode curl_easy_impersonate\(CURL \*curl.*?default_headers\);', '', c, flags=re.DOTALL)
 with open(f, 'w') as fh: fh.write(c)
 "
-echo "[OK] impersonate.h include + forward decl added to http.c"
+echo "[OK] Removed conflicting decl from easy.h"
 
 # ============================================================================
 # 7. Build curl as shared library
@@ -257,7 +248,7 @@ $INSTALL/zstd/lib/libzstd.a \
 $NGHTTP2_LIB"
 
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_FLAGS="$PIC" \
+  -DCMAKE_C_FLAGS="$PIC -include impersonate.h" \
   -DCMAKE_C_COMPILER="${CC:-gcc}" \
   -DCMAKE_CXX_COMPILER="${CXX:-g++}" \
   -DCMAKE_PREFIX_PATH="$INSTALL/boringssl;$INSTALL/zlib;$INSTALL/brotli;$INSTALL/zstd;$INSTALL/nghttp2" \

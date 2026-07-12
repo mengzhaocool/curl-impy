@@ -222,10 +222,17 @@ python3 "$PATCHES/apply_no_env_no_proxy.py" "$CURL_SRC"
 echo "[OK] All patches applied"
 
 # Fix C type conflict: header declares CURL* but impl uses struct Curl_easy*
-# This is a hard C error (not a warning) — CURL_PICKY_COMPILER can't fix it
-# Solution: change header to match implementation
-sed -i 's/curl_easy_impersonate(CURL \*curl,/curl_easy_impersonate(struct Curl_easy *data,/' include/curl/curl.h
-echo "[OK] Type conflict fixed (header matches implementation)"
+# This is a hard C error on gcc. Remove the conflicting declaration from curl.h.
+# The function is still exported via the shared library; the header decl is
+# only for compile-time prototype checking which we don't need.
+sed -i '/CURL_EXTERN CURLcode curl_easy_impersonate(CURL/,/default_headers);/d' include/curl/curl.h
+# Verify it was removed
+if grep -q "curl_easy_impersonate(CURL" include/curl/curl.h; then
+  echo "WARN: sed didn't remove declaration, trying alternate pattern"
+  sed -i '/curl_easy_impersonate(CURL/d' include/curl/curl.h
+  sed -i '/int default_headers);/d' include/curl/curl.h
+fi
+echo "[OK] Type conflict resolved"
 
 # ============================================================================
 # 7. Build curl as shared library

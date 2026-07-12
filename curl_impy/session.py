@@ -41,6 +41,49 @@ from dataclasses import dataclass, field
 from io import BytesIO
 
 
+def _find_ca_bundle():
+    """Find CA certificate bundle path. Tries certifi, then Windows system paths."""
+    # 1. Try certifi (if installed)
+    try:
+        import certifi
+        return certifi.where()
+    except ImportError:
+        pass
+
+    # 2. Try common Windows CA bundle locations
+    import os
+    candidates = [
+        # Python's bundled certifi-like bundle (some distributions)
+        os.path.join(os.path.dirname(__import__('ssl').get_default_verify_paths().openssl_cafile or '') or '', ''),
+    ]
+    # Python's default CA file
+    try:
+        import ssl
+        cafile = ssl.get_default_verify_paths().openssl_cafile
+        if cafile and os.path.isfile(cafile):
+            return cafile
+    except Exception:
+        pass
+
+    # 3. Try pip's CA bundle
+    try:
+        import pip._vendor.certifi
+        return pip._vendor.certifi.where()
+    except (ImportError, AttributeError):
+        pass
+
+    # 4. Try common system paths on Windows
+    for path in [
+        os.path.expandvars(r"%PROGRAMDATA%\Git\usr\ssl\cert.pem"),
+        os.path.expandvars(r"%PROGRAMFILES%\Git\usr\ssl\cert.pem"),
+        os.path.expandvars(r"%PROGRAMFILES(X86)%\Git\usr\ssl\cert.pem"),
+    ]:
+        if os.path.isfile(path):
+            return path
+
+    return None
+
+
 @dataclass
 class Response:
     """HTTP response object (requests-style)."""
@@ -126,6 +169,12 @@ class Session:
         setopt(self._handle, CURLOPT_SSL_VERIFYPEER, 1 if self._verify else 0)
         setopt(self._handle, CURLOPT_SSL_VERIFYHOST, 2 if self._verify else 0)
 
+        # CA certificate path: use certifi if available, else Windows system store
+        if self._verify:
+            ca_path = _find_ca_bundle()
+            if ca_path:
+                setopt(self._handle, CURLOPT_CAINFO, ca_path)
+
         # Proxy
         proxy = self._proxies.get("https") or self._proxies.get("http")
         if proxy:
@@ -160,6 +209,12 @@ class Session:
         # Re-apply impersonation (reset clears it)
         if self._impersonate:
             core.easy_impersonate(self._handle, self._impersonate, True)
+
+        # Re-apply CA certificate (reset clears it)
+        if self._verify:
+            ca_path = _find_ca_bundle()
+            if ca_path:
+                setopt(self._handle, CURLOPT_CAINFO, ca_path)
 
         # Build URL with params
         final_url = url

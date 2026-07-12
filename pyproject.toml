@@ -9,6 +9,7 @@ description = "Python binding for curl-impersonate-chrome with custom fingerprin
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.8"
+dependencies = ["certifi"]
 keywords = ["curl", "impersonate", "browser", "fingerprint", "tls", "ja3", "ja4"]
 classifiers = [
     "Programming Language :: Python :: 3",

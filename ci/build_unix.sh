@@ -69,14 +69,23 @@ fi
 # 2. brotli
 # ============================================================================
 # Check for either libbrotlienc.a or libbrotlienc-static.a
+# Create symlinks so both names exist (FindBrotli looks for non-static name)
 BROTLI_COMMON=""
 BROTLI_DEC=""
 BROTLI_ENC=""
-for suffix in "" "-static"; do
-  [ -f "$INSTALL/brotli/lib/libbrotlicommon${suffix}.a" ] && BROTLI_COMMON="$INSTALL/brotli/lib/libbrotlicommon${suffix}.a"
-  [ -f "$INSTALL/brotli/lib/libbrotlidec${suffix}.a" ] && BROTLI_DEC="$INSTALL/brotli/lib/libbrotlidec${suffix}.a"
-  [ -f "$INSTALL/brotli/lib/libbrotlienc${suffix}.a" ] && BROTLI_ENC="$INSTALL/brotli/lib/libbrotlienc${suffix}.a"
-done
+if [ -d "$INSTALL/brotlib" ] || [ -d "$INSTALL/brotli" ]; then
+  for lib in brotlicommon brotlidec brotlienc; do
+    target="$INSTALL/brotli/lib/lib${lib}.a"
+    if [ ! -f "$target" ] && [ -f "$INSTALL/brotli/lib/lib${lib}-static.a" ]; then
+      ln -sf "lib${lib}-static.a" "$target"
+    fi
+    [ -f "$target" ] && case "$lib" in
+      brotlicommon) BROTLI_COMMON="$target" ;;
+      brotlidec)    BROTLI_DEC="$target" ;;
+      brotlienc)    BROTLI_ENC="$target" ;;
+    esac
+  done
+fi
 
 if [ -z "$BROTLI_ENC" ]; then
   echo "=== Building brotli ==="
@@ -88,11 +97,23 @@ if [ -z "$BROTLI_ENC" ]; then
     -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX="$INSTALL/brotli" "$DEPS/brotli-1.0.9"
   cmake --build . && cmake --install . 2>/dev/null || true
   echo "[OK] brotli"
-  # Resolve actual library names
-  for suffix in "" "-static"; do
-    [ -f "$INSTALL/brotli/lib/libbrotlicommon${suffix}.a" ] && BROTLI_COMMON="$INSTALL/brotli/lib/libbrotlicommon${suffix}.a"
-    [ -f "$INSTALL/brotli/lib/libbrotlidec${suffix}.a" ] && BROTLI_DEC="$INSTALL/brotli/lib/libbrotlidec${suffix}.a"
-    [ -f "$INSTALL/brotli/lib/libbrotlienc${suffix}.a" ] && BROTLI_ENC="$INSTALL/brotli/lib/libbrotlienc${suffix}.a"
+  # Resolve actual library names + create symlinks so FindBrotli can find them
+  for lib in brotlicommon brotlidec brotlienc; do
+    for suffix in "" "-static"; do
+      f="$INSTALL/brotli/lib/lib${lib}${suffix}.a"
+      if [ -f "$f" ]; then
+        # Create symlink without suffix if it doesn't exist
+        target="$INSTALL/brotli/lib/lib${lib}.a"
+        [ -f "$target" ] || ln -sf "lib${lib}${suffix}.a" "$target"
+        # Set variable
+        case "$lib" in
+          brotlicommon) BROTLI_COMMON="$target" ;;
+          brotlidec)    BROTLI_DEC="$target" ;;
+          brotlienc)    BROTLI_ENC="$target" ;;
+        esac
+        break
+      fi
+    done
   done
 fi
 
@@ -119,9 +140,13 @@ if [ -z "$NGHTTP2_LIB" ]; then
     -DCMAKE_INSTALL_PREFIX="$INSTALL/nghttp2" "$DEPS/nghttp2-1.56.0"
   cmake --build . && cmake --install . 2>/dev/null || true
   echo "[OK] nghttp2"
-  # Resolve actual library name
+  # Create symlink so FindNGHTTP2 can find it
   NGHTTP2_LIB="$INSTALL/nghttp2/lib/libnghttp2.a"
-  [ -f "$NGHTTP2_LIB" ] || NGHTTP2_LIB="$INSTALL/nghttp2/lib/libnghttp2_static.a"
+  if [ ! -f "$NGHTTP2_LIB" ]; then
+    if [ -f "$INSTALL/nghttp2/lib/libnghttp2_static.a" ]; then
+      ln -sf libnghttp2_static.a "$NGHTTP2_LIB"
+    fi
+  fi
 fi
 
 # ============================================================================
@@ -256,12 +281,13 @@ cmake --build .
 OUT_DIR="$ROOT/curl_impy/libs/$PLATFORM"
 mkdir -p "$OUT_DIR"
 
-# Find the built library (could be in lib/ or lib/cmake/ etc)
+# Find the built library (check multiple name patterns)
 BUILT_LIB=""
 for pattern in \
+  "$BUILD/curl/lib/libcurl-impersonate-chrome.$LIB_EXT" \
+  "$BUILD/curl/lib/libcurl-impersonate-chrome.$LIB_EXT.*" \
   "$BUILD/curl/lib/libcurl.$LIB_EXT" \
-  "$BUILD/curl/lib/libcurl.$LIB_EXT.*" \
-  "$BUILD/curl/lib/libcurl-impersonate-chrome.$LIB_EXT"; do
+  "$BUILD/curl/lib/libcurl.$LIB_EXT.*"; do
   for f in $pattern; do
     if [ -f "$f" ]; then
       BUILT_LIB="$f"

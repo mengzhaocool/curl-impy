@@ -174,6 +174,12 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DNGHTTP2_INCLUDE_DIR="$INSTALL/nghttp2/include" \
   -DNGHTTP2_LIBRARY="$INSTALL/nghttp2/lib/libnghttp2.a" \
   -DNGHTTP2_STATICLIB=ON \
+  -DCURL_USE_LIBPSL=OFF \
+  -DCURL_USE_LIBIDN2=OFF \
+  -DCURL_USE_LIBSSH2=OFF \
+  -DCURL_USE_LIBRTMP=OFF \
+  -DUSE_LIBRTMP=OFF \
+  -DCURL_DISABLE_LDAP=ON \
   -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--whole-archive $STATIC_LIBS -Wl,--no-whole-archive -lpthread -ldl" \
   "$CURL_SRC"
 

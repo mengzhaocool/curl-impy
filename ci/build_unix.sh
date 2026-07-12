@@ -221,6 +221,12 @@ python3 "$PATCHES/apply_h2_fingerprint_patch.py" "$CURL_SRC"
 python3 "$PATCHES/apply_no_env_no_proxy.py" "$CURL_SRC"
 echo "[OK] All patches applied"
 
+# Fix gcc strict type checking: header declares CURL* but impl uses struct Curl_easy*
+# On Linux/gcc with -Wpedantic these are incompatible types
+sed -i 's/curl_easy_impersonate(struct Curl_easy \*data/curl_easy_impersonate(CURL *data/' lib/easy.c
+sed -i 's/curl_easy_impersonate(struct Curl_easy \*data/curl_easy_impersonate(CURL *data/' lib/impersonate.c
+echo "[OK] Type mismatch fixed for gcc"
+
 # ============================================================================
 # 7. Build curl as shared library
 # ============================================================================
@@ -269,11 +275,8 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_SHARED_LINKER_FLAGS="$LD_WRAP_START $STATIC_LIBS $LD_WRAP_END $LD_EXTRA" \
   "$CURL_SRC"
 
-# Build (try multiple target names)
-cmake --build . --target libcurl || \
-cmake --build . --target libcurl_shared || \
-cmake --build . --target lib || \
-cmake --build .
+# Build (target is libcurl_shared for shared library build)
+cmake --build . --target libcurl_shared || cmake --build .
 
 # ============================================================================
 # 8. Copy output library

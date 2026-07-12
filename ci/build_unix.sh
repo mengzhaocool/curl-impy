@@ -270,6 +270,18 @@ for d in [lib_dir, vtls_dir]:
 print(f'[OK] Added impersonate.h to {count} files')
 "
 
+# Add forward declaration for Curl_http_merge_headers (called before defined in http.c)
+python3 -c "
+f = 'lib/http.c'
+with open(f, 'r') as fh: c = fh.read()
+if 'CURLcode Curl_http_merge_headers(struct Curl_easy *data);' not in c:
+    c = c.replace('#include \"http.h\"', '#include \"http.h\"\nCURLcode Curl_http_merge_headers(struct Curl_easy *data);', 1)
+    with open(f, 'w') as fh: fh.write(c)
+    print('[OK] Forward declaration added to http.c')
+else:
+    print('[OK] Forward declaration already in http.c')
+"
+
 # ============================================================================
 # 7. Build curl as shared library
 # ============================================================================

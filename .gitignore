@@ -1,0 +1,32 @@
+# Build artifacts
+win_build/build/
+win_build/build_x86/
+win_build/install/
+win_build/install_x86/
+win_build/output/
+win_build/output_x86/
+
+# Deps (downloaded/extracted)
+win_build/deps/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temp
+*.log
+*.tmp

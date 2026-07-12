@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "curl-impy"
+version = "0.1.0"
+description = "Python binding for curl-impersonate-chrome with custom fingerprint support"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+keywords = ["curl", "impersonate", "browser", "fingerprint", "tls", "ja3", "ja4"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio"]
+
+[tool.setuptools]
+packages = ["curl_impy"]
+
+[tool.setuptools.package-data]
+curl_impy = [
+    "libs/win_x64/*.dll",
+    "libs/win_x86/*.dll",
+    "fingerprints/*.json",
+]

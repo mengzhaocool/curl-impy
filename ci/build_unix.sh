@@ -235,6 +235,41 @@ with open(f, 'w') as fh: fh.write(c)
 "
 echo "[OK] Removed conflicting decl from easy.h"
 
+# Fix: base patch uses strcasecompare/strncasecompare/Curl_safefree/aprintf macros
+# (defined in impersonate.h) in multiple .c files without including impersonate.h.
+# MSVC has these built-in, gcc doesn't. Add #include "impersonate.h" to each file that needs it.
+python3 -c "
+import os, re
+
+macros = ['strcasecompare', 'strncasecompare', 'Curl_safefree', 'aprintf']
+lib_dir = 'lib'
+vtls_dir = 'lib/vtls'
+count = 0
+
+for d in [lib_dir, vtls_dir]:
+    if not os.path.isdir(d): continue
+    for fname in os.listdir(d):
+        if not fname.endswith('.c'): continue
+        fpath = os.path.join(d, fname)
+        with open(fpath, 'r', errors='replace') as f: content = f.read()
+        if 'impersonate.h' in content: continue
+        needs = False
+        for macro in macros:
+            if re.search(r'\b' + macro + r'\b', content):
+                needs = True
+                break
+        if not needs: continue
+        lines = content.split('\n')
+        last_include = 0
+        for i, line in enumerate(lines):
+            if line.startswith('#include'): last_include = i
+        lines.insert(last_include + 1, '#include \"impersonate.h\"')
+        with open(fpath, 'w') as f: f.write('\n'.join(lines))
+        count += 1
+        print(f'  Added #include to {d}/{fname}')
+print(f'[OK] Added impersonate.h to {count} files')
+"
+
 # ============================================================================
 # 7. Build curl as shared library
 # ============================================================================
@@ -248,7 +283,7 @@ $INSTALL/zstd/lib/libzstd.a \
 $NGHTTP2_LIB"
 
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_FLAGS="$PIC -include impersonate.h" \
+  -DCMAKE_C_FLAGS="$PIC" \
   -DCMAKE_C_COMPILER="${CC:-gcc}" \
   -DCMAKE_CXX_COMPILER="${CXX:-g++}" \
   -DCMAKE_PREFIX_PATH="$INSTALL/boringssl;$INSTALL/zlib;$INSTALL/brotli;$INSTALL/zstd;$INSTALL/nghttp2" \

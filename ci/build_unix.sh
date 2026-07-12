@@ -9,7 +9,6 @@ DEPS="$ROOT/ci_deps"
 BUILD="$ROOT/ci_build"
 INSTALL="$ROOT/ci_install"
 PATCHES="$ROOT/ci/patches"
-SRC_PATCHES="$ROOT/ci/patches"
 PLATFORM="${PLATFORM:-linux_x64}"
 LIB_EXT="${LIB_EXT:-so}"
 
@@ -17,15 +16,37 @@ BORINGSSL_COMMIT="92316dc661f0a8aad68b8783889dc6a355e27735"
 CURL_VERSION="8.20.0"
 PIC="-fPIC -O2"
 
+# Platform-specific linker flags
+OS_TYPE="$(uname -s)"
+if [ "$OS_TYPE" = "Darwin" ]; then
+  # macOS: no --whole-archive, no -ldl, no -lpthread
+  LD_WRAP_START="-Wl,-all_load"
+  LD_WRAP_END=""
+  LD_EXTRA="-framework Security -framework CoreFoundation"
+  export CXX="${CXX:-clang++}"
+else
+  # Linux
+  LD_WRAP_START="-Wl,--whole-archive"
+  LD_WRAP_END="-Wl,--no-whole-archive"
+  LD_EXTRA="-lpthread -ldl"
+fi
+
 mkdir -p "$DEPS" "$BUILD" "$INSTALL" "$ROOT/curl_impy/libs/$PLATFORM"
 
 # ============================================================================
-# Helper: download and extract
+# Helper: download with fallback
 # ============================================================================
 download() {
-  local url="$1" dest="$2"
+  local url="$1" dest="$2" alt_url="$3"
   if [ ! -f "$dest" ]; then
-    curl -sL --fail -o "$dest" "$url" || { echo "FAILED to download $url"; return 1; }
+    curl -sL --fail -o "$dest" "$url" || {
+      if [ -n "$alt_url" ]; then
+        echo "Primary URL failed, trying fallback..."
+        curl -sL --fail -o "$dest" "$alt_url" || { echo "FAILED to download $url and $alt_url"; return 1; }
+      else
+        echo "FAILED to download $url"; return 1
+      fi
+    }
   fi
 }
 
@@ -99,16 +120,21 @@ if [ ! -f "$INSTALL/boringssl/lib/libssl.a" ]; then
   echo "=== Building BoringSSL ==="
   cd "$DEPS"
   download "https://github.com/google/boringssl/archive/$BORINGSSL_COMMIT.zip" "boringssl.zip"
-  [ -d "boringssl" ] || { unzip -q boringssl.zip && mv "boringssl-$BORINGSSL_COMMIT" boringssl; }
+  rm -rf boringssl "boringssl-$BORINGSSL_COMMIT"
+  unzip -q boringssl.zip
+  mv "boringssl-$BORINGSSL_COMMIT" boringssl
   rm -rf "$BUILD/boringssl" && mkdir -p "$BUILD/boringssl" && cd "$BUILD/boringssl"
   cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_C_FLAGS="$PIC" -DCMAKE_CXX_FLAGS="$PIC" \
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_TESTING=OFF "$DEPS/boringssl"
   cmake --build . --target ssl crypto
   mkdir -p "$INSTALL/boringssl/lib" "$INSTALL/boringssl/include"
-  # BoringSSL puts .a files in build root, not ssl/ or crypto/ subdirs
-  find . -name "libssl.a" -exec cp {} "$INSTALL/boringssl/lib/" \;
-  find . -name "libcrypto.a" -exec cp {} "$INSTALL/boringssl/lib/" \;
+  # BoringSSL puts .a files in build root
+  find . -name "libssl.a" | head -1 | xargs -I{} cp {} "$INSTALL/boringssl/lib/"
+  find . -name "libcrypto.a" | head -1 | xargs -I{} cp {} "$INSTALL/boringssl/lib/"
+  # Verify
+  [ -f "$INSTALL/boringssl/lib/libssl.a" ] || { echo "ERROR: libssl.a not found after BoringSSL build"; exit 1; }
+  [ -f "$INSTALL/boringssl/lib/libcrypto.a" ] || { echo "ERROR: libcrypto.a not found after BoringSSL build"; exit 1; }
   cp -r "$DEPS/boringssl/include/"* "$INSTALL/boringssl/include/"
   echo "[OK] BoringSSL"
 fi
@@ -118,30 +144,36 @@ fi
 # ============================================================================
 echo "=== Building curl $CURL_VERSION ==="
 cd "$DEPS"
-download "https://curl.se/download/curl-$CURL_VERSION.tar.xz" "curl-$CURL_VERSION.tar.xz"
+# Use curl.se primary, GitHub mirror as fallback
+download "https://curl.se/download/curl-$CURL_VERSION.tar.xz" "curl-$CURL_VERSION.tar.xz" \
+         "https://github.com/curl/curl/releases/download/curl_${CURL_VERSION//./_}/curl-$CURL_VERSION.tar.xz"
 rm -rf "curl-$CURL_VERSION"
 tar xf "curl-$CURL_VERSION.tar.xz"
 CURL_SRC="$DEPS/curl-$CURL_VERSION"
 
-# Apply base impersonate patch
+# Apply base impersonate patch (fail hard if it doesn't apply)
 cd "$CURL_SRC"
 if [ -f "$PATCHES/curl-impersonate-$CURL_VERSION.patch" ]; then
-  patch -p1 < "$PATCHES/curl-impersonate-$CURL_VERSION.patch" || true
+  patch -p1 < "$PATCHES/curl-impersonate-$CURL_VERSION.patch"
+  echo "[OK] Base impersonate patch applied"
 fi
 
-# Copy impersonate_register, impersonate.h, cJSON source files
-cp "$PATCHES/impersonate_register.c" "$PATCHES/impersonate_register.h" lib/ 2>/dev/null || true
-cp "$PATCHES/impersonate.h" lib/ 2>/dev/null || true
-cp "$PATCHES/cJSON.c" "$PATCHES/cJSON.h" lib/ 2>/dev/null || true
+# Copy source files into lib/ directory
+cp "$PATCHES/impersonate_register.c" "$PATCHES/impersonate_register.h" lib/
+cp "$PATCHES/impersonate.h" lib/
+cp "$PATCHES/cJSON.c" "$PATCHES/cJSON.h" lib/
 
-# Apply our custom patches (Python scripts are cross-platform)
-python3 "$PATCHES/apply_h2_fingerprint_patch.py" "$CURL_SRC" || true
-python3 "$PATCHES/apply_no_env_no_proxy.py" "$CURL_SRC" || true
+# Apply our custom patches (fail hard if they fail)
+python3 "$PATCHES/apply_h2_fingerprint_patch.py" "$CURL_SRC"
+python3 "$PATCHES/apply_no_env_no_proxy.py" "$CURL_SRC"
+echo "[OK] All patches applied"
 
-# Build curl as shared library
+# ============================================================================
+# 7. Build curl as shared library
+# ============================================================================
 rm -rf "$BUILD/curl" && mkdir -p "$BUILD/curl" && cd "$BUILD/curl"
 
-# Build linker flags: statically link all deps into the shared lib
+# Static libraries to link into the shared lib
 STATIC_LIBS="$INSTALL/boringssl/lib/libssl.a $INSTALL/boringssl/lib/libcrypto.a \
 $INSTALL/zlib/lib/libz.a \
 $INSTALL/brotli/lib/libbrotlicommon.a $INSTALL/brotli/lib/libbrotlidec.a $INSTALL/brotli/lib/libbrotlienc.a \
@@ -151,6 +183,7 @@ $INSTALL/nghttp2/lib/libnghttp2.a"
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_C_FLAGS="$PIC" \
   -DCMAKE_C_COMPILER="${CC:-gcc}" \
+  -DCMAKE_CXX_COMPILER="${CXX:-g++}" \
   -DBUILD_SHARED_LIBS=ON \
   -DBUILD_TESTING=OFF \
   -DBUILD_CURL_EXE=OFF \
@@ -159,6 +192,7 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DOPENSSL_INCLUDE_DIR="$INSTALL/boringssl/include" \
   -DOPENSSL_CRYPTO_LIBRARY="$INSTALL/boringssl/lib/libcrypto.a" \
   -DOPENSSL_SSL_LIBRARY="$INSTALL/boringssl/lib/libssl.a" \
+  -DOPENSSL_USE_STATIC_LIBS=ON \
   -DZLIB_ROOT="$INSTALL/zlib" \
   -DZLIB_INCLUDE_DIR="$INSTALL/zlib/include" \
   -DZLIB_LIBRARY="$INSTALL/zlib/lib/libz.a" \
@@ -180,39 +214,48 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DCURL_USE_LIBRTMP=OFF \
   -DUSE_LIBRTMP=OFF \
   -DCURL_DISABLE_LDAP=ON \
-  -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--whole-archive $STATIC_LIBS -Wl,--no-whole-archive -lpthread -ldl" \
+  -DCMAKE_SHARED_LINKER_FLAGS="$LD_WRAP_START $STATIC_LIBS $LD_WRAP_END $LD_EXTRA" \
   "$CURL_SRC"
 
-cmake --build . --target libcurl
+# Build (try both target names)
+cmake --build . --target libcurl || cmake --build . --target libcurl_shared || cmake --build .
 
-# Find and copy the output library
+# ============================================================================
+# 8. Copy output library
+# ============================================================================
 OUT_DIR="$ROOT/curl_impy/libs/$PLATFORM"
-FOUND=""
-for f in \
-  "$BUILD/curl/lib/libcurl-impersonate-chrome.$LIB_EXT" \
+mkdir -p "$OUT_DIR"
+
+# Find the built library (could be in lib/ or lib/cmake/ etc)
+BUILT_LIB=""
+for pattern in \
   "$BUILD/curl/lib/libcurl.$LIB_EXT" \
-  "$BUILD/curl/lib/libcurl-impersonate-chrome.$LIB_EXT.4" \
-  "$BUILD/curl/lib/libcurl.$LIB_EXT.4"; do
-  if [ -f "$f" ]; then
-    cp "$f" "$OUT_DIR/"
-    FOUND="$f"
-    break
-  fi
+  "$BUILD/curl/lib/libcurl.$LIB_EXT.*" \
+  "$BUILD/curl/lib/libcurl-impersonate-chrome.$LIB_EXT"; do
+  for f in $pattern; do
+    if [ -f "$f" ]; then
+      BUILT_LIB="$f"
+      break 2
+    fi
+  done
 done
 
-# Also copy versioned symlinks
-cd "$BUILD/curl/lib"
-for f in libcurl*.$LIB_EXT*; do
-  [ -f "$f" ] && cp "$f" "$OUT_DIR/" 2>/dev/null || true
-done
-
-# Ensure the main file exists
-if [ ! -f "$OUT_DIR/libcurl-impersonate-chrome.$LIB_EXT" ]; then
-  # Rename libcurl.so to libcurl-impersonate-chrome.so
-  if [ -f "$OUT_DIR/libcurl.$LIB_EXT" ]; then
-    cp "$OUT_DIR/libcurl.$LIB_EXT" "$OUT_DIR/libcurl-impersonate-chrome.$LIB_EXT"
-  fi
+if [ -z "$BUILT_LIB" ]; then
+  echo "ERROR: Built library not found. Searching..."
+  find "$BUILD/curl" -name "*.$LIB_EXT" -type f
+  exit 1
 fi
+
+echo "Found: $BUILT_LIB"
+
+# Copy the actual file (resolve symlinks)
+cp -L "$BUILT_LIB" "$OUT_DIR/libcurl-impersonate-chrome.$LIB_EXT"
+
+# Also copy versioned symlinks if they exist
+cd "$(dirname "$BUILT_LIB")"
+for f in libcurl*.so* libcurl*.dylib*; do
+  [ -f "$f" ] && [ "$f" != "$(basename $BUILT_LIB)" ] && cp -L "$f" "$OUT_DIR/" 2>/dev/null || true
+done
 
 echo "=== Build complete ==="
 ls -la "$OUT_DIR/"

@@ -13,13 +13,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build nasm
+      - run: sudo apt-get update && sudo apt-get install -y cmake ninja-build nasm pkg-config
       - run: chmod +x ci/build_unix.sh
       - run: PLATFORM=linux_x64 LIB_EXT=so bash ci/build_unix.sh .
       - uses: actions/upload-artifact@v4
         with:
           name: lib-linux_x64
-          path: curl_impy/libs/linux_x64/*.so
+          path: curl_impy/libs/linux_x64/*
 
   build-macos:
     runs-on: macos-13
@@ -28,13 +28,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: brew install cmake ninja nasm
+      - run: brew install cmake ninja nasm pkg-config
       - run: chmod +x ci/build_unix.sh
       - run: PLATFORM=macos_universal LIB_EXT=dylib CC=clang bash ci/build_unix.sh .
       - uses: actions/upload-artifact@v4
         with:
           name: lib-macos_universal
-          path: curl_impy/libs/macos_universal/*.dylib
+          path: curl_impy/libs/macos_universal/*
 
   build-windows:
     runs-on: windows-2022
@@ -45,14 +45,15 @@ jobs:
           python-version: '3.12'
       - shell: cmd
         run: |
-          choco install -y nasm
+          set PATH=C:\Program Files\NASM;%PATH%
+          where nasm || choco install nasm -y --no-progress
           cd win_build
           python build_dll_verify.py curl x64
           copy output\libcurl-impersonate-chrome.dll ..\curl_impy\libs\win_x64\
       - uses: actions/upload-artifact@v4
         with:
           name: lib-win_x64
-          path: curl_impy/libs/win_x64/*.dll
+          path: curl_impy/libs/win_x64/*
 
   package:
     needs: [build-linux, build-macos, build-windows]

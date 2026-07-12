@@ -18,7 +18,7 @@ mkdir -p "$DEPS" "$BUILD" "$INSTALL"
 
 # 1. zlib
 cd "$DEPS"
-[ -f "zlib-1.3.1.tar.gz" ] || curl -sL -o zlib-1.3.1.tar.gz https://zlib.net/zlib-1.3.1.tar.gz
+[ -f "zlib-1.3.1.tar.gz" ] || curl -sL -o zlib-1.3.1.tar.gz "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz"
 [ -d "zlib-1.3.1" ] || tar xf zlib-1.3.1.tar.gz
 rm -rf "$BUILD/zlib" && mkdir "$BUILD/zlib" && cd "$BUILD/zlib"
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="$PIC" \

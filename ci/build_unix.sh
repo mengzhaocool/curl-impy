@@ -316,7 +316,7 @@ $INSTALL/zstd/lib/libzstd.a \
 $NGHTTP2_LIB"
 
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_FLAGS="$PIC -Wno-error -Wno-implicit-function-declaration" \
+  -DCMAKE_C_FLAGS="$PIC -w" \
   -DCMAKE_C_COMPILER="${CC:-gcc}" \
   -DCMAKE_CXX_COMPILER="${CXX:-g++}" \
   -DCMAKE_PREFIX_PATH="$INSTALL/boringssl;$INSTALL/zlib;$INSTALL/brotli;$INSTALL/zstd;$INSTALL/nghttp2" \

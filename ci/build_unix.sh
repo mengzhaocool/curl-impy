@@ -106,7 +106,9 @@ if [ ! -f "$INSTALL/boringssl/lib/libssl.a" ]; then
     -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DBUILD_TESTING=OFF "$DEPS/boringssl"
   cmake --build . --target ssl crypto
   mkdir -p "$INSTALL/boringssl/lib" "$INSTALL/boringssl/include"
-  cp ssl/libssl.a crypto/libcrypto.a "$INSTALL/boringssl/lib/"
+  # BoringSSL puts .a files in build root, not ssl/ or crypto/ subdirs
+  find . -name "libssl.a" -exec cp {} "$INSTALL/boringssl/lib/" \;
+  find . -name "libcrypto.a" -exec cp {} "$INSTALL/boringssl/lib/" \;
   cp -r "$DEPS/boringssl/include/"* "$INSTALL/boringssl/include/"
   echo "[OK] BoringSSL"
 fi

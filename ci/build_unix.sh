@@ -235,6 +235,11 @@ with open(f, 'w') as fh: fh.write(c)
 "
 echo "[OK] Removed conflicting decl from easy.h"
 
+# Remove -Werror-implicit-function-declaration from curl's CMakeLists.txt
+# curl adds this flag AFTER CMAKE_C_FLAGS, so -Wno-... can't override it
+sed -i 's/-Werror-implicit-function-declaration//g' CMakeLists.txt
+echo "[OK] Removed -Werror-implicit-function-declaration from CMakeLists.txt"
+
 # Fix: base patch uses strcasecompare/strncasecompare/Curl_safefree/aprintf macros
 # (defined in impersonate.h) in multiple .c files without including impersonate.h.
 # MSVC has these built-in, gcc doesn't. Add #include "impersonate.h" to each file that needs it.

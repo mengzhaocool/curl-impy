@@ -221,12 +221,6 @@ python3 "$PATCHES/apply_h2_fingerprint_patch.py" "$CURL_SRC"
 python3 "$PATCHES/apply_no_env_no_proxy.py" "$CURL_SRC"
 echo "[OK] All patches applied"
 
-# Fix gcc strict type checking: header declares CURL* but impl uses struct Curl_easy*
-# On Linux/gcc with -Wpedantic these are incompatible types
-sed -i 's/curl_easy_impersonate(struct Curl_easy \*data/curl_easy_impersonate(CURL *data/' lib/easy.c
-sed -i 's/curl_easy_impersonate(struct Curl_easy \*data/curl_easy_impersonate(CURL *data/' lib/impersonate.c
-echo "[OK] Type mismatch fixed for gcc"
-
 # ============================================================================
 # 7. Build curl as shared library
 # ============================================================================
@@ -247,6 +241,7 @@ cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_SHARED_LIBS=ON \
   -DBUILD_TESTING=OFF \
   -DBUILD_CURL_EXE=OFF \
+  -DCURL_PICKY_COMPILER=OFF \
   -DCURL_USE_OPENSSL=ON \
   -DOPENSSL_ROOT_DIR="$INSTALL/boringssl" \
   -DOPENSSL_INCLUDE_DIR="$INSTALL/boringssl/include" \

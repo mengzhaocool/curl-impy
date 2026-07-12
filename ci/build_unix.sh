@@ -231,11 +231,18 @@ grep -q "curl_easy_impersonate(CURL" include/curl/easy.h && {
 }
 echo "[OK] Type conflict resolved (removed decl from easy.h)"
 
-# Fix implicit declaration conflict: Curl_http_merge_headers is called before
-# its definition in http.c. gcc assumes int return, then conflicts with CURLcode.
-# Add forward declaration after includes.
-sed -i '/#include "http.h"/a CURLcode Curl_http_merge_headers(struct Curl_easy *data);' lib/http.c
-echo "[OK] Forward declaration added for Curl_http_merge_headers"
+# Fix: http.c's Curl_http_merge_headers uses macros from impersonate.h
+# (strncasecompare, Curl_safefree, aprintf) but doesn't include it.
+# Also add forward declaration for the function itself.
+python3 -c "
+f = 'lib/http.c'
+with open(f, 'r') as fh: c = fh.read()
+old = '#include \"http.h\"'
+new = old + '\n#include \"impersonate.h\"\nCURLcode Curl_http_merge_headers(struct Curl_easy *data);'
+c = c.replace(old, new, 1)
+with open(f, 'w') as fh: fh.write(c)
+"
+echo "[OK] impersonate.h include + forward decl added to http.c"
 
 # ============================================================================
 # 7. Build curl as shared library

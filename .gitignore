@@ -18,6 +18,9 @@ dist/
 build/
 .eggs/
 
+# Keep lib placeholder dirs
+!curl_impy/libs/*/.gitkeep
+
 # IDE
 .vscode/
 .idea/

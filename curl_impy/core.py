@@ -14,24 +14,31 @@ from typing import Any, Optional, Callable
 # ============================================================================
 
 def _get_dll_path() -> str:
-    """Find the DLL within the package directory. No external paths."""
+    """Find the shared library within the package directory. No external paths."""
     bits = struct.calcsize("P") * 8  # 64 or 32
-    if sys.platform != "win32":
-        raise OSError("Currently only Windows is supported")
 
-    arch_dir = "win_x64" if bits == 64 else "win_x86"
-    dll_name = "libcurl-impersonate-chrome.dll"
+    if sys.platform == "win32":
+        arch_dir = "win_x64" if bits == 64 else "win_x86"
+        lib_name = "libcurl-impersonate-chrome.dll"
+    elif sys.platform == "linux":
+        arch_dir = "linux_x64" if bits == 64 else "linux_x86"
+        lib_name = "libcurl-impersonate-chrome.so"
+    elif sys.platform == "darwin":
+        arch_dir = "macos_universal"
+        lib_name = "libcurl-impersonate-chrome.dylib"
+    else:
+        raise OSError(f"Unsupported platform: {sys.platform}")
 
-    # Only search within the package directory
+    # Search within the package directory
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
-    pkg_dll = os.path.join(pkg_dir, "libs", arch_dir, dll_name)
-    if os.path.isfile(pkg_dll):
-        return pkg_dll
+    pkg_lib = os.path.join(pkg_dir, "libs", arch_dir, lib_name)
+    if os.path.isfile(pkg_lib):
+        return pkg_lib
 
     raise FileNotFoundError(
-        f"Cannot find {dll_name} for {arch_dir}. "
-        f"Expected at: {pkg_dll}. "
-        f"Please ensure the DLL is bundled in the package."
+        f"Cannot find {lib_name} for {arch_dir}. "
+        f"Expected at: {pkg_lib}. "
+        f"Please ensure the library is bundled in the package."
     )
 
 

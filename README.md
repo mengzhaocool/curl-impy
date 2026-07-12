@@ -95,8 +95,8 @@ with Session(impersonate="chrome144", proxies={"https": "http://proxy:8080"}) as
 |------|------|
 | Windows x64 | ✅ |
 | Windows x86 | ✅ |
-| Linux | 规划中 |
-| macOS | 规划中 |
+| Linux x64 | ✅ (CI 自动构建) |
+| macOS (Universal) | ✅ (CI 自动构建) |
 
 ---
 
@@ -190,8 +190,8 @@ with Session(impersonate="chrome144", proxies={"https": "http://proxy:8080"}) as
 |----------|--------|
 | Windows x64 | ✅ |
 | Windows x86 | ✅ |
-| Linux | Planned |
-| macOS | Planned |
+| Linux x64 | ✅ (CI auto-build) |
+| macOS (Universal) | ✅ (CI auto-build) |
 
 ## License
 

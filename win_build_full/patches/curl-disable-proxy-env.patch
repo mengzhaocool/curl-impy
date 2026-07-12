@@ -1,0 +1,56 @@
+diff --git a/lib/url.c b/lib/url.c
+--- a/lib/url.c
++++ b/lib/url.c
+@@ -2184,36 +2184,29 @@
+   if(data->set.str[STRING_PRE_PROXY]) {
+     socksproxy = curlx_strdup(data->set.str[STRING_PRE_PROXY]);
+     /* if global socks proxy is set, this is it */
+     if(!socksproxy) {
+       failf(data, "memory shortage");
+       result = CURLE_OUT_OF_MEMORY;
+       goto out;
+     }
+   }
+
+-  if(!data->set.str[STRING_NOPROXY]) {
+-    const char *p = "no_proxy";
+-    no_proxy = curl_getenv(p);
+-    if(!no_proxy) {
+-      p = "NO_PROXY";
+-      no_proxy = curl_getenv(p);
+-    }
+-    if(no_proxy) {
+-      infof(data, "Uses proxy env variable %s == '%s'", p, no_proxy);
+-    }
+-  }
+-
+-  if(Curl_check_noproxy(conn->host.name, data->set.str[STRING_NOPROXY] ?
+-                        data->set.str[STRING_NOPROXY] : no_proxy)) {
+-    curlx_safefree(proxy);
+-    curlx_safefree(socksproxy);
+-  }
+-#ifndef CURL_DISABLE_HTTP
+-  else if(!proxy && !socksproxy)
+-    /* if the host is not in the noproxy list, detect proxy. */
+-    proxy = detect_proxy(data, conn);
+-#endif /* CURL_DISABLE_HTTP */
+-  curlx_safefree(no_proxy);
++  /* curl-impersonate: Do not read proxy environment variables
++   * (no_proxy/NO_PROXY/http_proxy/https_proxy/all_proxy/ALL_PROXY).
++   * This allows applications to fully control proxy behavior via
++   * CURLOPT_PROXY / CURLOPT_NOPROXY / CURLOPT_PRE_PROXY options,
++   * without interference from environment variables. This is critical
++   * when libcurl is linked into a DLL with its own CRT that does not
++   * share _environ with the host process, making getenv() unreliable. */
++  if(data->set.str[STRING_NOPROXY] &&
++     Curl_check_noproxy(conn->host.name, data->set.str[STRING_NOPROXY])) {
++    curlx_safefree(proxy);
++    curlx_safefree(socksproxy);
++  }
++  /* curl-impersonate: detect_proxy() is intentionally NOT called,
++   * so environment variables are never read. Proxy must be set
++   * explicitly via CURLOPT_PROXY. */
++  curlx_safefree(no_proxy);
+
+ #ifdef USE_UNIX_SOCKETS
+   /* For the time being do not mix proxy and Unix domain sockets. See #1274 */

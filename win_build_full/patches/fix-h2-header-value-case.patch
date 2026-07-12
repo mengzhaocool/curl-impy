@@ -1,0 +1,13 @@
+diff --git a/lib/dynhds.c b/lib/dynhds.c
+--- a/lib/dynhds.c
++++ b/lib/dynhds.c
+@@ -46,9 +46,6 @@ static struct dynhds_entry *entry_new(const char *name, size_t namelen,
+   e->valuelen = valuelen;
+   if(opts & DYNHDS_OPT_LOWERCASE)
+     Curl_strntolower(e->name, e->name, e->namelen);
+-  // curl-impersonate: Make header value also lower case
+-  if(opts & DYNHDS_OPT_LOWERCASE)
+-    Curl_strntolower(e->value, e->value, e->valuelen);
+   return e;
+ }
+

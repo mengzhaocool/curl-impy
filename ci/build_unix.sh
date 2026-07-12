@@ -231,6 +231,12 @@ grep -q "curl_easy_impersonate(CURL" include/curl/easy.h && {
 }
 echo "[OK] Type conflict resolved (removed decl from easy.h)"
 
+# Fix implicit declaration conflict: Curl_http_merge_headers is called before
+# its definition in http.c. gcc assumes int return, then conflicts with CURLcode.
+# Add forward declaration after includes.
+sed -i '/#include "http.h"/a CURLcode Curl_http_merge_headers(struct Curl_easy *data);' lib/http.c
+echo "[OK] Forward declaration added for Curl_http_merge_headers"
+
 # ============================================================================
 # 7. Build curl as shared library
 # ============================================================================

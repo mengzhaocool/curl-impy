@@ -8,8 +8,8 @@ ROOT="$(cd "${1:-.}" && pwd)"
 DEPS="$ROOT/ci_deps"
 BUILD="$ROOT/ci_build"
 INSTALL="$ROOT/ci_install"
-PATCHES="$ROOT/win_build/patches"
-SRC_PATCHES="$ROOT/chrome/patches"
+PATCHES="$ROOT/ci/patches"
+SRC_PATCHES="$ROOT/ci/patches"
 PLATFORM="${PLATFORM:-linux_x64}"
 LIB_EXT="${LIB_EXT:-so}"
 
@@ -125,26 +125,18 @@ CURL_SRC="$DEPS/curl-$CURL_VERSION"
 
 # Apply base impersonate patch
 cd "$CURL_SRC"
-if [ -f "$SRC_PATCHES_DIR/curl-impersonate-$CURL_VERSION.patch" ]; then
-  patch -p1 < "$SRC_PATCHES_DIR/curl-impersonate-$CURL_VERSION.patch" || true
+if [ -f "$PATCHES/curl-impersonate-$CURL_VERSION.patch" ]; then
+  patch -p1 < "$PATCHES/curl-impersonate-$CURL_VERSION.patch" || true
 fi
 
-# Copy impersonate_register source files
-cp "$PATCHES_DIR/impersonate_register.c" "$PATCHES_DIR/impersonate_register.h" lib/ 2>/dev/null || true
-
-# Find and copy impersonate.h
-for h in "$PATCHES_DIR/impersonate.h" "$ROOT/chrome/curl/lib/impersonate.h"; do
-  [ -f "$h" ] && cp "$h" lib/ && break
-done
-
-# Find and copy cJSON
-for c in "$ROOT/chrome/curl/lib/cJSON.c" "$ROOT/chrome/curl/lib/cJSON.h"; do
-  [ -f "$c" ] && cp "$c" lib/ && break
-done
+# Copy impersonate_register, impersonate.h, cJSON source files
+cp "$PATCHES/impersonate_register.c" "$PATCHES/impersonate_register.h" lib/ 2>/dev/null || true
+cp "$PATCHES/impersonate.h" lib/ 2>/dev/null || true
+cp "$PATCHES/cJSON.c" "$PATCHES/cJSON.h" lib/ 2>/dev/null || true
 
 # Apply our custom patches (Python scripts are cross-platform)
-python3 "$PATCHES_DIR/apply_h2_fingerprint_patch.py" "$CURL_SRC" || true
-python3 "$PATCHES_DIR/apply_no_env_no_proxy.py" "$CURL_SRC" || true
+python3 "$PATCHES/apply_h2_fingerprint_patch.py" "$CURL_SRC" || true
+python3 "$PATCHES/apply_no_env_no_proxy.py" "$CURL_SRC" || true
 
 # Build curl as shared library
 rm -rf "$BUILD/curl" && mkdir -p "$BUILD/curl" && cd "$BUILD/curl"

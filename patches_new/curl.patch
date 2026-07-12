@@ -844,45 +844,6 @@ index a472d6d..e25a65f 100644
  /*
   * curl_easy_init() is the external interface to alloc, setup and init an
   * easy handle that is returned. If anything goes wrong, NULL is returned.
-@@ -331,6 +780,8 @@ CURL *curl_easy_init(void)
- {
-   CURLcode result;
-   struct Curl_easy *data;
-+  char *env_target = NULL;
-+  char *env_headers = NULL;
- 
-   /* Make sure we inited the global SSL stuff */
-   global_init_lock();
-@@ -353,6 +804,30 @@ CURL *curl_easy_init(void)
-     return NULL;
-   }
- 
-+  /*
-+   * curl-impersonate: Hook into curl_easy_init() to set the required options
-+   * from an environment variable.
-+   * This is a bit hacky but allows seamless integration of libcurl-impersonate
-+   * without code modifications to the app.
-+   */
-+  env_target = curl_getenv("CURL_IMPERSONATE");
-+  if(env_target) {
-+    env_headers = curl_getenv("CURL_IMPERSONATE_HEADERS");
-+    if(env_headers) {
-+      result = curl_easy_impersonate(data, env_target,
-+                                     !curl_strequal(env_headers, "no"));
-+      free(env_headers);
-+    }
-+    else {
-+      result = curl_easy_impersonate(data, env_target, TRUE);
-+    }
-+    free(env_target);
-+    if(result) {
-+      Curl_close(&data);
-+      return NULL;
-+    }
-+  }
-+
-   return data;
- }
  
 diff --git a/lib/easyoptions.c b/lib/easyoptions.c
 index 4c0b4f0..2ef60dc 100644

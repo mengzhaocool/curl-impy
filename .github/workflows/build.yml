@@ -36,28 +36,8 @@ jobs:
           name: lib-macos_universal
           path: curl_impy/libs/macos_universal/*
 
-  build-windows:
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - shell: cmd
-        run: |
-          where nasm 2>nul
-          if errorlevel 1 choco install nasm -y --no-progress
-          set "PATH=C:\Program Files\NASM;%PATH%"
-          cd win_build
-          python build_dll_verify.py curl x64
-          copy output\libcurl-impersonate-chrome.dll "..\curl_impy\libs\win_x64\"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: lib-win_x64
-          path: curl_impy/libs/win_x64/*
-
   package:
-    needs: [build-linux, build-macos, build-windows]
+    needs: [build-linux, build-macos]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -68,8 +48,7 @@ jobs:
         with:
           path: artifacts
       - run: |
-          mkdir -p curl_impy/libs/win_x64 curl_impy/libs/linux_x64 curl_impy/libs/macos_universal
-          cp artifacts/lib-win_x64/* curl_impy/libs/win_x64/ 2>/dev/null || true
+          mkdir -p curl_impy/libs/linux_x64 curl_impy/libs/macos_universal
           cp artifacts/lib-linux_x64/* curl_impy/libs/linux_x64/ 2>/dev/null || true
           cp artifacts/lib-macos_universal/* curl_impy/libs/macos_universal/ 2>/dev/null || true
           ls -la curl_impy/libs/*/

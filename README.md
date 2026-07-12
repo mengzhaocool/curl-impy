@@ -1,128 +1,197 @@
 # curl-impy
 
-Python binding for **curl-impersonate-chrome** — impersonate any Chrome version's TLS/HTTP2 fingerprint by providing a JSON config.
+[中文](#中文) | [English](#english)
 
-## Features
+---
 
-- **Chrome 120+ support** — includes post-quantum key exchange (X25519MLKEM768), ECH GREASE
-- **Any Chrome version** — just provide a JSON fingerprint config, no code changes
-- **Zero external dependencies** — DLL is statically linked (BoringSSL, zlib, brotli, zstd, nghttp2)
-- **Proxy isolation** — ignores `http_proxy`, `https_proxy`, `ALL_PROXY`, system proxy settings
-- **Header case fix** — no duplicate headers when overriding `User-Agent` with `USER-AGENT`
-- **requests-style API** — familiar `Session.get()`, `Session.post()`, etc.
+## 中文
 
-## Installation
+Python 浏览器指纹模拟库 —— 通过 JSON 配置模拟任意 Chrome 版本的 TLS/HTTP2 指纹。
+
+### 与其他 curl 版本的区别
+
+| 特性 | curl-impy | 其他 curl 版本 |
+|------|-----------|---------------|
+| Chrome 120+ 指纹模拟 | ✅ 支持后量子密钥交换 (X25519MLKEM768) | ❌ 缺少后量子加密套件 |
+| ECH (Encrypted Client Hello) | ✅ 支持 GREASE | ❌ 不支持 |
+| 任意 Chrome 版本模拟 | ✅ 提供 JSON 即可 | ❌ 仅内置固定版本 |
+| 代理环境变量隔离 | ✅ 完全忽略 http_proxy/https_proxy/ALL_PROXY | ❌ 受环境变量影响 |
+| 系统全局代理隔离 | ✅ 忽略 Windows 注册表代理设置 | ❌ 受系统代理影响 |
+| HTTP 头部大小写 | ✅ 大小写不敏感，无重复头 | ❌ 可能出现同名重复头 |
+| SSL 证书验证 | ✅ 自动配置 CA 证书路径 | ⚠️ 需手动配置 |
+| 外部依赖 | ✅ 零依赖（DLL 静态链接 BoringSSL/zlib/brotli/zstd） | ⚠️ 依赖动态链接库 |
+
+### 安装
 
 ```bash
-# From source (GitHub)
-git clone https://github.com/mengzhaocool/curl-impy.git
-cd curl-impy
-pip install .
-
-# Or just use directly without install
-python -c "from curl_impy import Session; ..."
+pip install git+https://github.com/mengzhaocool/curl-impy.git
 ```
 
-## Quick Start
+### 快速开始
 
 ```python
 from curl_impy import Session
 
-# Chrome 144 fingerprint (bundled)
-with Session(impersonate="chrome144", verify=False) as s:
+# Chrome 144 指纹（内置）
+with Session(impersonate="chrome144") as s:
     r = s.get("https://httpbin.org/get")
     print(r.status_code)        # 200
     print(r.json()["headers"]["User-Agent"])  # Chrome/144.0.0.0
 ```
 
-## Custom Fingerprint
+### 自定义指纹
 
-Register any Chrome version by providing a JSON config:
+注册任意 Chrome 版本，只需提供 JSON 指纹配置：
 
 ```python
 from curl_impy import Session
 
-# Register a custom fingerprint
 Session.register("chrome120", "path/to/Chrome120.json")
 
 with Session(impersonate="chrome120") as s:
     r = s.get("https://httpbin.org/get")
 ```
 
-## API Reference
+### API
 
-### `Session(impersonate=None, timeout=30, verify=True, proxies=None, headers=None)`
+```python
+with Session(
+    impersonate="chrome144",   # 指纹目标名
+    timeout=30,                # 超时秒数
+    verify=True,               # SSL 验证（默认开启）
+    proxies={"https": "..."},  # 显式代理
+    headers={"X-Key": "val"},  # 默认请求头
+) as s:
+    r = s.get(url, params={"q": "1"})
+    r = s.post(url, json={"key": "value"})
+    r = s.put(url, data=b"bytes")
+    r = s.patch(url, headers={"X-Extra": "1"})
+    r = s.delete(url)
+    r = s.head(url)
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `impersonate` | `str` | `None` | Registered fingerprint target name |
-| `timeout` | `float` | `30` | Request timeout in seconds |
-| `verify` | `bool` | `True` | Verify SSL certificates |
-| `proxies` | `dict` | `None` | Proxy config, e.g. `{"https": "http://proxy:8080"}` |
-| `headers` | `dict` | `None` | Default headers for all requests |
+    print(r.status_code, r.headers, r.text, r.json())
+    print(r.url, r.elapsed)
+```
 
-### Methods
-
-| Method | Description |
-|--------|-------------|
-| `get(url, **kwargs)` | GET request |
-| `post(url, **kwargs)` | POST request |
-| `put(url, **kwargs)` | PUT request |
-| `patch(url, **kwargs)` | PATCH request |
-| `delete(url, **kwargs)` | DELETE request |
-| `head(url, **kwargs)` | HEAD request |
-| `request(method, url, **kwargs)` | Generic request |
-
-### `Session.register(target, json_config)` (static)
-
-Register a browser fingerprint from JSON file or string.
-
-### `register_fingerprint(target, json_config)`
-
-Module-level fingerprint registration.
-
-### Response Object
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `status_code` | `int` | HTTP status code |
-| `headers` | `dict` | Response headers |
-| `content` | `bytes` | Response body (raw) |
-| `text` | `str` | Response body (decoded) |
-| `url` | `str` | Final URL (after redirects) |
-| `elapsed` | `float` | Time in seconds |
-| `json()` | `Any` | Parse body as JSON |
-| `ok` | `bool` | True if status < 400 |
-
-## Proxy Isolation
-
-The DLL ignores ALL proxy environment variables and system proxy settings:
+### 代理隔离
 
 ```python
 import os
-os.environ["http_proxy"] = "http://127.0.0.1:1"  # Ignored
-os.environ["https_proxy"] = "http://127.0.0.1:1"  # Ignored
-os.environ["ALL_PROXY"] = "http://127.0.0.1:1"    # Ignored
-
-# System Windows proxy (registry) — also ignored
+os.environ["http_proxy"] = "http://127.0.0.1:1"   # 被忽略
+os.environ["https_proxy"] = "http://127.0.0.1:1"   # 被忽略
+os.environ["ALL_PROXY"] = "http://127.0.0.1:1"     # 被忽略
 
 with Session(impersonate="chrome144") as s:
-    r = s.get("https://www.baidu.com")  # Works! Direct connection.
-    # No proxy leak.
+    r = s.get("https://www.baidu.com")  # 直连成功
 
-# Explicit proxy still works:
+# 显式代理仍然生效
 with Session(impersonate="chrome144", proxies={"https": "http://proxy:8080"}) as s:
-    r = s.get("https://www.baidu.com")  # Uses the proxy.
+    r = s.get("https://www.baidu.com")  # 走代理
 ```
 
-## Supported Platforms
+### 支持平台
+
+| 平台 | 状态 |
+|------|------|
+| Windows x64 | ✅ |
+| Windows x86 | ✅ |
+| Linux | 规划中 |
+| macOS | 规划中 |
+
+---
+
+## English
+
+Python browser fingerprint impersonation library — impersonate any Chrome version's TLS/HTTP2 fingerprint via JSON config.
+
+### What Makes It Different
+
+| Feature | curl-impy | Other curl versions |
+|---------|-----------|---------------------|
+| Chrome 120+ fingerprint | ✅ Post-quantum key exchange (X25519MLKEM768) | ❌ Missing post-quantum ciphers |
+| ECH (Encrypted Client Hello) | ✅ GREASE supported | ❌ Not supported |
+| Any Chrome version | ✅ Just provide a JSON config | ❌ Only built-in fixed versions |
+| Proxy env isolation | ✅ Ignores http_proxy/https_proxy/ALL_PROXY | ❌ Affected by env vars |
+| System proxy isolation | ✅ Ignores Windows registry proxy | ❌ Affected by system proxy |
+| Header case handling | ✅ Case-insensitive, no duplicates | ❌ May produce duplicate headers |
+| SSL verification | ✅ Auto-configures CA bundle | ⚠️ Manual setup needed |
+| External dependencies | ✅ Zero (DLL statically links BoringSSL/zlib/brotli/zstd) | ⚠️ Depends on dynamic libraries |
+
+### Installation
+
+```bash
+pip install git+https://github.com/mengzhaocool/curl-impy.git
+```
+
+### Quick Start
+
+```python
+from curl_impy import Session
+
+with Session(impersonate="chrome144") as s:
+    r = s.get("https://httpbin.org/get")
+    print(r.status_code)        # 200
+    print(r.json()["headers"]["User-Agent"])  # Chrome/144.0.0.0
+```
+
+### Custom Fingerprint
+
+Register any Chrome version by providing a JSON fingerprint config:
+
+```python
+from curl_impy import Session
+
+Session.register("chrome120", "path/to/Chrome120.json")
+
+with Session(impersonate="chrome120") as s:
+    r = s.get("https://httpbin.org/get")
+```
+
+### API
+
+```python
+with Session(
+    impersonate="chrome144",   # fingerprint target
+    timeout=30,                # timeout in seconds
+    verify=True,               # SSL verification (default on)
+    proxies={"https": "..."},  # explicit proxy
+    headers={"X-Key": "val"},  # default headers
+) as s:
+    r = s.get(url, params={"q": "1"})
+    r = s.post(url, json={"key": "value"})
+    r = s.put(url, data=b"bytes")
+    r = s.patch(url, headers={"X-Extra": "1"})
+    r = s.delete(url)
+    r = s.head(url)
+
+    print(r.status_code, r.headers, r.text, r.json())
+    print(r.url, r.elapsed)
+```
+
+### Proxy Isolation
+
+```python
+import os
+os.environ["http_proxy"] = "http://127.0.0.1:1"   # Ignored
+os.environ["https_proxy"] = "http://127.0.0.1:1"   # Ignored
+os.environ["ALL_PROXY"] = "http://127.0.0.1:1"     # Ignored
+
+with Session(impersonate="chrome144") as s:
+    r = s.get("https://www.baidu.com")  # Direct connection works
+
+# Explicit proxy still works
+with Session(impersonate="chrome144", proxies={"https": "http://proxy:8080"}) as s:
+    r = s.get("https://www.baidu.com")  # Goes through proxy
+```
+
+### Supported Platforms
 
 | Platform | Status |
 |----------|--------|
-| Windows x64 | ✅ Supported |
-| Windows x86 | ✅ Supported |
-| Linux | ❌ Not yet |
-| macOS | ❌ Not yet |
+| Windows x64 | ✅ |
+| Windows x86 | ✅ |
+| Linux | Planned |
+| macOS | Planned |
 
 ## License
 

@@ -239,7 +239,7 @@ struct curl_httppost {
 
 /* This is the CURLOPT_PROGRESSFUNCTION callback prototype. It is now
    considered deprecated but was the only choice up until 7.31.0 */
-typedef int (*curl_progress_callback)(void *clientp,
+typedef int (__stdcall *curl_progress_callback)(void *clientp,
                                       double dltotal,
                                       double dlnow,
                                       double ultotal,
@@ -248,7 +248,7 @@ typedef int (*curl_progress_callback)(void *clientp,
 /* This is the CURLOPT_XFERINFOFUNCTION callback prototype. It was introduced
    in 7.32.0, avoids the use of floating point numbers and provides more
    detailed information. */
-typedef int (*curl_xferinfo_callback)(void *clientp,
+typedef int (__stdcall *curl_xferinfo_callback)(void *clientp,
                                       curl_off_t dltotal,
                                       curl_off_t dlnow,
                                       curl_off_t ultotal,
@@ -284,13 +284,13 @@ typedef int (*curl_xferinfo_callback)(void *clientp,
    signals an error from the callback. */
 #define CURL_WRITEFUNC_ERROR 0xFFFFFFFF
 
-typedef size_t (*curl_write_callback)(char *buffer,
+typedef size_t (__stdcall *curl_write_callback)(char *buffer,
                                       size_t size,
                                       size_t nitems,
                                       void *outstream);
 
 /* This callback is called when a new resolver request is made */
-typedef int (*curl_resolver_start_callback)(void *resolver_state,
+typedef int (__stdcall *curl_resolver_start_callback)(void *resolver_state,
                                             void *reserved, void *userdata);
 
 /* enumeration of file types */
@@ -353,7 +353,7 @@ struct curl_fileinfo {
 /* if splitting of data transfer is enabled, this callback is called before
    download of an individual chunk started. Note that parameter "remains" works
    only for FTP wildcard downloading (for now), otherwise is not used */
-typedef long (*curl_chunk_bgn_callback)(const void *transfer_info,
+typedef long (__stdcall *curl_chunk_bgn_callback)(const void *transfer_info,
                                         void *ptr,
                                         int remains);
 
@@ -367,7 +367,7 @@ typedef long (*curl_chunk_bgn_callback)(const void *transfer_info,
    Even if downloading of this chunk was skipped in CHUNK_BGN_FUNC.
    This is the reason why we do not need "transfer_info" parameter in this
    callback and we are not interested in "remains" parameter too. */
-typedef long (*curl_chunk_end_callback)(void *ptr);
+typedef long (__stdcall *curl_chunk_end_callback)(void *ptr);
 
 /* return codes for FNMATCHFUNCTION */
 #define CURL_FNMATCHFUNC_MATCH    0 /* string corresponds to the pattern */
@@ -376,7 +376,7 @@ typedef long (*curl_chunk_end_callback)(void *ptr);
 
 /* callback type for wildcard downloading pattern matching. If the
    string matches the pattern, return CURL_FNMATCHFUNC_MATCH value, etc. */
-typedef int (*curl_fnmatch_callback)(void *ptr,
+typedef int (__stdcall *curl_fnmatch_callback)(void *ptr,
                                      const char *pattern,
                                      const char *string);
 
@@ -385,7 +385,7 @@ typedef int (*curl_fnmatch_callback)(void *ptr,
 #define CURL_SEEKFUNC_FAIL     1 /* fail the entire transfer */
 #define CURL_SEEKFUNC_CANTSEEK 2 /* tell libcurl seeking cannot be done, so
                                     libcurl might try other means instead */
-typedef int (*curl_seek_callback)(void *instream,
+typedef int (__stdcall *curl_seek_callback)(void *instream,
                                   curl_off_t offset,
                                   int origin); /* 'whence' */
 
@@ -403,12 +403,12 @@ typedef int (*curl_seek_callback)(void *instream,
   want to abort the request */
 #define CURL_TRAILERFUNC_ABORT 1
 
-typedef size_t (*curl_read_callback)(char *buffer,
+typedef size_t (__stdcall *curl_read_callback)(char *buffer,
                                      size_t size,
                                      size_t nitems,
                                      void *instream);
 
-typedef int (*curl_trailer_callback)(struct curl_slist **list,
+typedef int (__stdcall *curl_trailer_callback)(struct curl_slist **list,
                                      void *userdata);
 
 typedef enum {
@@ -424,7 +424,7 @@ typedef enum {
                                 CURLE_ABORTED_BY_CALLBACK */
 #define CURL_SOCKOPT_ALREADY_CONNECTED 2
 
-typedef int (*curl_sockopt_callback)(void *clientp,
+typedef int (__stdcall *curl_sockopt_callback)(void *clientp,
                                      curl_socket_t curlfd,
                                      curlsocktype purpose);
 
@@ -439,12 +439,12 @@ struct curl_sockaddr {
 };
 
 typedef curl_socket_t
-(*curl_opensocket_callback)(void *clientp,
+(__stdcall *curl_opensocket_callback)(void *clientp,
                             curlsocktype purpose,
                             struct curl_sockaddr *address);
 
 typedef int
-(*curl_closesocket_callback)(void *clientp, curl_socket_t item);
+(__stdcall *curl_closesocket_callback)(void *clientp, curl_socket_t item);
 
 typedef enum {
   CURLIOE_OK,            /* I/O operation successful */
@@ -459,7 +459,7 @@ typedef enum {
   CURLIOCMD_LAST         /* never use */
 } curliocmd;
 
-typedef curlioerr (*curl_ioctl_callback)(CURL *handle,
+typedef curlioerr (__stdcall *curl_ioctl_callback)(CURL *handle,
                                          int cmd,
                                          void *clientp);
 
@@ -491,7 +491,7 @@ typedef enum {
   CURLINFO_END
 } curl_infotype;
 
-typedef int (*curl_debug_callback)
+typedef int (__stdcall *curl_debug_callback)
        (CURL *handle,      /* the handle/transfer this concerns */
         curl_infotype type, /* what kind of data */
         char *data,        /* points to the data */
@@ -499,7 +499,7 @@ typedef int (*curl_debug_callback)
         void *userptr);    /* whatever the user please */
 
 /* This is the CURLOPT_PREREQFUNCTION callback prototype. */
-typedef int (*curl_prereq_callback)(void *clientp,
+typedef int (__stdcall *curl_prereq_callback)(void *clientp,
                                     char *conn_primary_ip,
                                     char *conn_local_ip,
                                     int conn_primary_port,
@@ -782,9 +782,9 @@ typedef enum {
 } CURLproxycode;
 
 /* This prototype applies to all conversion callbacks */
-typedef CURLcode (*curl_conv_callback)(char *buffer, size_t length);
+typedef CURLcode (__stdcall *curl_conv_callback)(char *buffer, size_t length);
 
-typedef CURLcode (*curl_ssl_ctx_callback)(CURL *curl,    /* easy handle */
+typedef CURLcode (__stdcall *curl_ssl_ctx_callback)(CURL *curl,    /* easy handle */
                                           void *ssl_ctx, /* actually an OpenSSL
                                                             or wolfSSL SSL_CTX,
                                                             or an mbedTLS
@@ -1063,10 +1063,10 @@ typedef enum {
   CURLSTS_FAIL
 } CURLSTScode;
 
-typedef CURLSTScode (*curl_hstsread_callback)(CURL *easy,
+typedef CURLSTScode (__stdcall *curl_hstsread_callback)(CURL *easy,
                                               struct curl_hstsentry *e,
                                               void *userp);
-typedef CURLSTScode (*curl_hstswrite_callback)(CURL *easy,
+typedef CURLSTScode (__stdcall *curl_hstswrite_callback)(CURL *easy,
                                                struct curl_hstsentry *e,
                                                struct curl_index *i,
                                                void *userp);
@@ -2768,7 +2768,7 @@ curl_formadd(struct curl_httppost **httppost,
  * Should return the buffer length passed to it as the argument "len" on
  *   success.
  */
-typedef size_t (*curl_formget_callback)(void *arg, const char *buf,
+typedef size_t (__stdcall *curl_formget_callback)(void *arg, const char *buf,
                                         size_t len);
 
 /*
@@ -3173,11 +3173,11 @@ typedef enum {
   CURL_LOCK_ACCESS_LAST        /* never use */
 } curl_lock_access;
 
-typedef void (*curl_lock_function)(CURL *handle,
+typedef void (__stdcall *curl_lock_function)(CURL *handle,
                                    curl_lock_data data,
                                    curl_lock_access locktype,
                                    void *userptr);
-typedef void (*curl_unlock_function)(CURL *handle,
+typedef void (__stdcall *curl_unlock_function)(CURL *handle,
                                      curl_lock_data data,
                                      void *userptr);
 

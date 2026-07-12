@@ -109,6 +109,17 @@ def run(cmd, cwd=None, check=True, env=None, shell=False):
     )
     if check and result.returncode != 0:
         log(f"Command failed (rc={result.returncode}): {cmd_str}", "ERROR")
+        # Save full output to file for debugging
+        import tempfile
+        debug_file = os.path.join(tempfile.gettempdir(), "curl_build_error.txt")
+        with open(debug_file, 'w', encoding='utf-8') as f:
+            f.write(f"Command: {cmd_str}\n")
+            f.write(f"Return code: {result.returncode}\n")
+            f.write(f"cwd: {cwd}\n\n=== STDOUT ===\n")
+            f.write(result.stdout or "")
+            f.write(f"\n=== STDERR ===\n")
+            f.write(result.stderr or "")
+        log(f"  Full output saved to: {debug_file}")
         if result.stdout:
             for line in result.stdout.splitlines()[-20:]:
                 log(f"  stdout: {line}", "ERROR")
@@ -1661,10 +1672,11 @@ def build_arch(arch, vcvarsall, skip_download=False, keep_intermediates=False):
     else:
         log("  Patches already applied (skipping).")
 
-    # NOTE: stdcall callback conversion requires modifying both typedefs AND
-    # all internal callback implementations in curl source (100+ locations).
-    # Script created at win_build_full/add_stdcall_callbacks.py but not yet
-    # integrated due to complexity. See Phase 3 analysis for details.
+    # Apply stdcall calling convention to callback typedefs
+    stdcall_script = WIN_BUILD_DIR / "add_stdcall_callbacks.py"
+    if stdcall_script.exists():
+        log("  Applying __stdcall to callback typedefs...")
+        run([sys.executable, str(stdcall_script), str(deps_dir)], check=False)
 
     # Build each dependency in order
     deps_info = {}

@@ -270,6 +270,22 @@ for d in [lib_dir, vtls_dir]:
 print(f'[OK] Added impersonate.h to {count} files')
 "
 
+# Explicitly ensure vtls/openssl.c has the include (known problem file)
+python3 -c "
+f = 'lib/vtls/openssl.c'
+with open(f, 'r', errors='replace') as fh: c = fh.read()
+if 'impersonate.h' not in c:
+    lines = c.split('\n')
+    last_inc = 0
+    for i, line in enumerate(lines):
+        if line.startswith('#include'): last_inc = i
+    lines.insert(last_inc + 1, '#include \"impersonate.h\"')
+    with open(f, 'w') as fh: fh.write('\n'.join(lines))
+    print('[OK] Explicitly added impersonate.h to vtls/openssl.c')
+else:
+    print('[OK] vtls/openssl.c already has impersonate.h')
+"
+
 # Add forward declaration for Curl_http_merge_headers (called before defined in http.c)
 python3 -c "
 f = 'lib/http.c'
@@ -295,7 +311,7 @@ $INSTALL/zstd/lib/libzstd.a \
 $NGHTTP2_LIB"
 
 cmake -G Ninja -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_C_FLAGS="$PIC -Wno-error -Wno-error=implicit-function-declaration" \
+  -DCMAKE_C_FLAGS="$PIC -Wno-error -Wno-implicit-function-declaration" \
   -DCMAKE_C_COMPILER="${CC:-gcc}" \
   -DCMAKE_CXX_COMPILER="${CXX:-g++}" \
   -DCMAKE_PREFIX_PATH="$INSTALL/boringssl;$INSTALL/zlib;$INSTALL/brotli;$INSTALL/zstd;$INSTALL/nghttp2" \

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "curl-impy"
-version = "0.7.8"
+version = "0.7.9"
 description = "Python binding for curl-impersonate with custom fingerprint registration"
 readme = "README.md"
 license = {text = "MIT"}

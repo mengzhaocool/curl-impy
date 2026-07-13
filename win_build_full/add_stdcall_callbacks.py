@@ -92,6 +92,96 @@ static int __stdcall curl_fseek_callback(void *p, curl_off_t offset, int whence)
         return 1
     return 0
 
+def fix_crt_callback_casts(lib_dir):
+    """Fix CRT function casts (fwrite/fread) in url.c, setopt.c, sendf.c.
+
+    The default write callback is (curl_write_callback)fwrite, but fwrite is
+    __cdecl. After changing curl_write_callback to __stdcall, calling fwrite
+    through it causes stack corruption on x86.
+
+    Fix: add __stdcall wrappers and replace the casts.
+    """
+    count = 0
+
+    # Wrappers to add to url.c (first file that sets defaults)
+    wrappers = '''
+/* __stdcall wrappers for CRT functions used as default callbacks (x86 stdcall) */
+static size_t __stdcall curl_fwrite_callback(char *ptr, size_t size, size_t nmemb, void *stream) {
+    return fwrite(ptr, size, nmemb, (FILE *)stream);
+}
+static size_t __stdcall curl_fread_default_cb(char *buf, size_t sz, size_t nm, void *p) {
+    return fread(buf, sz, nm, (FILE *)p);
+}
+'''
+
+    # Fix url.c
+    url_path = os.path.join(lib_dir, "url.c")
+    if os.path.isfile(url_path):
+        with open(url_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        original = content
+        if 'curl_fwrite_callback' not in content:
+            last_include = content.rfind('#include')
+            if last_include >= 0:
+                end_of_include = content.index('\n', last_include) + 1
+                content = content[:end_of_include] + wrappers + content[end_of_include:]
+        content = content.replace('(curl_write_callback)fwrite', 'curl_fwrite_callback')
+        content = content.replace('(curl_read_callback)fread', 'curl_fread_default_cb')
+        if content != original:
+            with open(url_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"[stdcall] url.c: fwrite/fread CRT wrappers added")
+            count += 1
+
+    # Fix setopt.c
+    setopt_path = os.path.join(lib_dir, "setopt.c")
+    if os.path.isfile(setopt_path):
+        with open(setopt_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        original = content
+        if 'curl_fwrite_callback' not in content:
+            last_include = content.rfind('#include')
+            if last_include >= 0:
+                end_of_include = content.index('\n', last_include) + 1
+                content = content[:end_of_include] + wrappers + content[end_of_include:]
+        content = content.replace('(curl_write_callback)fwrite', 'curl_fwrite_callback')
+        content = content.replace('(curl_read_callback)fread', 'curl_fread_default_cb')
+        if content != original:
+            with open(setopt_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"[stdcall] setopt.c: fwrite/fread CRT wrappers added")
+            count += 1
+
+    # Fix sendf.c (comparison with fread)
+    sendf_path = os.path.join(lib_dir, "sendf.c")
+    if os.path.isfile(sendf_path):
+        with open(sendf_path, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        original = content
+        # The comparison checks if fread_func == default fread callback.
+        # After our fix, the default is curl_fread_default_cb (defined in url.c).
+        # Since sendf.c can't see url.c's static function, just replace the
+        # comparison to always check against the wrapper we define here.
+        sendf_wrappers = '''
+/* __stdcall wrapper for fread (same as url.c's curl_fread_default_cb) */
+static size_t __stdcall curl_fread_default_cb(char *buf, size_t sz, size_t nm, void *p) {
+    return fread(buf, sz, nm, (FILE *)p);
+}
+'''
+        if 'curl_fread_default_cb' not in content:
+            last_include = content.rfind('#include')
+            if last_include >= 0:
+                end_of_include = content.index('\n', last_include) + 1
+                content = content[:end_of_include] + sendf_wrappers + content[end_of_include:]
+        content = content.replace('(curl_read_callback)fread', 'curl_fread_default_cb')
+        if content != original:
+            with open(sendf_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print(f"[stdcall] sendf.c: fread comparison fixed")
+            count += 1
+
+    return count
+
 def fix_mime_c(lib_dir):
     """Fix mime.c: create __stdcall wrappers for static callback functions."""
     filepath = os.path.join(lib_dir, "mime.c")
@@ -250,6 +340,9 @@ def main():
 
     # 2. Fix CRT function casts (fread/fseek in formdata.c)
     total += fix_formdata_c(curl_lib)
+
+    # 2b. Fix CRT function casts in url.c, setopt.c, sendf.c
+    total += fix_crt_callback_casts(curl_lib)
 
     # 3. Fix static callback functions in mime.c (create wrappers)
     total += fix_mime_c(curl_lib)

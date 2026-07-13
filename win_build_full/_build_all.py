@@ -542,6 +542,11 @@ def apply_all_patches(deps_dir, git_exe):
     if not apply_patch(curl_src, PATCHES_DIR / "curl-suppress-connect-headers.patch", git_exe):
         log("curl-suppress-connect-headers patch failed, aborting build", "FATAL")
         sys.exit(1)
+    # Curl patch: fix HTTP/2 header value case (remove incorrect lowercasing)
+    # Without this, :method becomes "get" instead of "GET", causing 400 from strict servers (AWS ALB)
+    if not apply_patch(curl_src, PATCHES_DIR / "fix-h2-header-value-case.patch", git_exe):
+        log("fix-h2-header-value-case patch failed, aborting build", "FATAL")
+        sys.exit(1)
     # Copy new files for curl
     copy_new_files(curl_src, PATCHES_DIR, [
         "cJSON.c", "cJSON.h",

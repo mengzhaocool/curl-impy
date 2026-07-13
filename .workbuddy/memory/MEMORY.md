@@ -7,16 +7,18 @@
 
 ## 构建系统（关键！）
 - **`_build_all.py`** 是真正的完整构建脚本：下载 → 打补丁(patches_new/) → 编译 → 验证 → 清理
-- **`_step6_build.py`** 是从已打补丁源码构建的脚本（不下载，不重新打补丁）
-- **`.bat` 文件**（build_all.bat, build_curl_dll.bat 等）是另一套构建系统，与 _build_all.py 不同
-- 今天早上成功构建用的是 `_step6_build.py`，不是 .bat 文件
-- **不要用 .bat 文件构建！用 _build_all.py 或 _step6_build.py**
+- 构建流程纯patch驱动：apply patches → copy files → compile（0个py脚本改源码）
+- win_build: 5个patch + 文件复制（cdecl回调）
+- win_build_full: 6个patch + 文件复制（stdcall回调，额外curl-stdcall-callbacks.patch）
+- patches_new/curl.patch 自包含所有修改（merge/slist.h/static/reset/slist_free_all）
+- patches_new/curl-share-stdcall.patch: Curl_share_lock/unlock的__stdcall
+- win_build_full/patches/curl-stdcall-callbacks.patch: 23个typedef+CRT包装器
 
 ## 补丁体系
 - `patches_new/` 目录包含所有补丁：curl.patch, boringssl.patch, brotli.patch, nghttp2.patch, nghttp3.patch, ngtcp2.patch, zlib.patch, zstd.patch
-- 还有源文件：cJSON.c/h, impersonate.c/h, impersonate_register.c/h, xweb5_config.h, libcurl-impersonate.def
-- `_build_all.py` 的 `apply_all_patches()` 函数从 patches_new/ 应用所有补丁
-- `apply_patch()` 函数用 git apply 应用补丁（先 git init + commit baseline）
+- curl-disable-proxy-env.patch, curl-suppress-connect-headers.patch, fix-h2-header-value-case.patch
+- curl-share-stdcall.patch (Curl_share_lock/unlock __stdcall)
+- 源文件：cJSON.c/h, impersonate.c/h, impersonate_register.c/h, xweb5_config.h, libcurl-impersonate.def
 
 ## 依赖版本
 - curl: 8.20.0
@@ -33,5 +35,13 @@ Remove-Item "D:\curl-impersonate-Xweb5\install\curl" -Recurse -Force -ErrorActio
 ```
 
 ## 教训
-- 2026-07-12: 我错误地用 git checkout 回退了 win_build/ 下被用户修改但未提交的 .bat 文件，导致 ZSTD 变量、NASM fallback 等丢失。然后又用 .bat 文件构建（应该用 _build_all.py）。最终 rm -rf 了 D:\curl-impersonate 的原始内容。
-- Xweb5 未被修改（时间戳确认所有改动都是今天早上 04:58 之前的 AI 会话所为）
+- 2026-07-12: 我错误地用 git checkout 回退了 win_build/ 下被用户修改但未提交的 .bat 文件
+- Xweb5 未被修改
+
+## curl-impy项目
+- GitHub: mengzhaocool/curl-impy
+- 当前状态: ctypes绑定层(core.py) + 基础session.py
+- 主要问题: 无cookie管理/无content-encoding/无异步/header解析不完整
+- 改造方案: 保留core.py(含register_fingerprint特色), 替换session.py为curl-cffi的requests/
+- 适配难点: CFFI→ctypes桥接(ffi.new/ffi.new_handle/ffi.from_handle/@ffi.def_extern)
+- curl-cffi用CFFI+_wrapper.pyd(静态链接curl), 我们用ctypes+独立DLL

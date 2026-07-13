@@ -876,14 +876,17 @@ def set_curl_options(
                     f"Impersonating {normalized} is not supported"
                 )
         else:
-            fingerprint = _load_named_fingerprint(impersonate)
-            if fingerprint is None:
-                raise ImpersonateError(
-                    f"Impersonating {impersonate} is not supported"
+            # Try DLL directly (covers runtime-registered targets via impersonate_register)
+            ret = c.impersonate(impersonate, default_headers=default_headers)  # type: ignore
+            if ret != 0:
+                fingerprint = _load_named_fingerprint(impersonate)
+                if fingerprint is None:
+                    raise ImpersonateError(
+                        f"Impersonating {impersonate} is not supported"
+                    )
+                _apply_fingerprint(
+                    c, fingerprint, existing_header_names, default_headers
                 )
-            _apply_fingerprint(
-                c, fingerprint, existing_header_names, default_headers
-            )
 
     # ja3 string
     if ja3:

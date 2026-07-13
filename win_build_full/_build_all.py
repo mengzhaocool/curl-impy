@@ -1844,7 +1844,7 @@ def main():
                 p.unlink()
         log("Cleanup done.", "OK")
 
-    # Ensure patches_new exists
+    # Ensure patches exists
     if not PATCHES_DIR.exists():
         log(f"patches/ directory not found at {PATCHES_DIR}", "ERROR")
         log("Run patch generation first: generate patches from git diffs", "ERROR")

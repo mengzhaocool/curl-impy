@@ -270,7 +270,7 @@ index d600c73..3030487 100644
     (option) == CURLOPT_ISSUERCERT ||                                    \
     (option) == CURLOPT_KEYPASSWD ||                                     \
 diff --git a/lib/CMakeLists.txt b/lib/CMakeLists.txt
-index aae466c..d11e914 100644
+index aae466c..e2e1edc 100644
 --- a/lib/CMakeLists.txt
 +++ b/lib/CMakeLists.txt
 @@ -355,3 +355,4 @@ if(PERL_EXECUTABLE)
@@ -378,7 +378,7 @@ index d5337eb..35b852b 100644
 +
  #endif /* HEADER_CURL_DYNHDS_H */
 diff --git a/lib/easy.c b/lib/easy.c
-index a472d6d..e25a65f 100644
+index a472d6d..c6840a1 100644
 --- a/lib/easy.c
 +++ b/lib/easy.c
 @@ -74,6 +74,9 @@
@@ -521,7 +521,7 @@ index a472d6d..e25a65f 100644
 +
 +    if(headers) {
 +      ret = curl_easy_setopt(data, CURLOPT_HTTPBASEHEADER, headers);
-+      curl_slist_free_all(headers);
++      /* slist owned by curl now, do NOT free (use-after-free fix) */
 +      if(ret)
 +        return ret;
 +    }
@@ -844,7 +844,6 @@ index a472d6d..e25a65f 100644
  /*
   * curl_easy_init() is the external interface to alloc, setup and init an
   * easy handle that is returned. If anything goes wrong, NULL is returned.
- 
 diff --git a/lib/easyoptions.c b/lib/easyoptions.c
 index 4c0b4f0..2ef60dc 100644
 --- a/lib/easyoptions.c
@@ -965,13 +964,41 @@ index 4c0b4f0..2ef60dc 100644
  }
  #endif
 diff --git a/lib/http.c b/lib/http.c
-index 9118c7e..77b0143 100644
+index 9118c7e..728880e 100644
 --- a/lib/http.c
 +++ b/lib/http.c
-@@ -1747,6 +1747,15 @@ CURLcode Curl_add_custom_headers(struct Curl_easy *data,
+@@ -67,6 +67,7 @@
+ #include "hostip.h"
+ #include "dynhds.h"
+ #include "http.h"
++#include "slist.h"
+ #include "headers.h"
+ #include "select.h"
+ #include "parsedate.h" /* for the week day and month names */
+@@ -1738,6 +1739,9 @@ static const char *get_http_string(int httpversion)
+   }
+ }
+ 
++/* Forward declaration for base header merging */
++static CURLcode Curl_http_merge_headers(struct Curl_easy *data);
++
+ CURLcode Curl_add_custom_headers(struct Curl_easy *data,
+                                  bool is_connect, int httpversion,
+                                  struct dynbuf *req)
+@@ -1747,6 +1751,25 @@ CURLcode Curl_add_custom_headers(struct Curl_easy *data,
    int numlists = 1; /* by default */
    int i;
  
++  /*
++   * curl-impersonate: Merge base headers with application-supplied headers.
++   * Must be called before checking merged_headers below.
++   */
++  if(data->state.base_headers && !data->state.merged_headers) {
++    CURLcode merge_result = Curl_http_merge_headers(data);
++    if(merge_result)
++      return merge_result;
++  }
++
 +  /*
 +   * curl-impersonate: Use the merged list of headers if it exists (i.e. when
 +   * the CURLOPT_HTTPBASEHEADER option was set.
@@ -984,7 +1011,7 @@ index 9118c7e..77b0143 100644
  #ifndef CURL_DISABLE_PROXY
    enum Curl_proxy_use proxy;
  
-@@ -1758,10 +1767,11 @@ CURLcode Curl_add_custom_headers(struct Curl_easy *data,
+@@ -1758,10 +1781,11 @@ CURLcode Curl_add_custom_headers(struct Curl_easy *data,
  
    switch(proxy) {
    case HEADER_SERVER:
@@ -998,7 +1025,7 @@ index 9118c7e..77b0143 100644
      if(data->set.sep_headers) {
        h[1] = data->set.proxyheaders;
        numlists++;
-@@ -1771,12 +1781,12 @@ CURLcode Curl_add_custom_headers(struct Curl_easy *data,
+@@ -1771,12 +1795,12 @@ CURLcode Curl_add_custom_headers(struct Curl_easy *data,
      if(data->set.sep_headers)
        h[0] = data->set.proxyheaders;
      else
@@ -1013,7 +1040,7 @@ index 9118c7e..77b0143 100644
  #endif
  
    /* loop through one or two lists */
-@@ -1986,6 +1996,105 @@ void Curl_http_method(struct Curl_easy *data,
+@@ -1986,6 +2010,104 @@ void Curl_http_method(struct Curl_easy *data,
    *reqp = httpreq;
  }
  
@@ -1024,9 +1051,8 @@ index 9118c7e..77b0143 100644
 + * The new list is a merge between the "base" headers and the application given
 + * headers.
 + */
-+CURLcode Curl_http_merge_headers(struct Curl_easy *data)
++static CURLcode Curl_http_merge_headers(struct Curl_easy *data)
 +{
-+  int i;
 +  int ret;
 +  struct curl_slist *head;
 +  struct curl_slist *dup = NULL;
@@ -1119,7 +1145,7 @@ index 9118c7e..77b0143 100644
  static CURLcode http_useragent(struct Curl_easy *data)
  {
    /* The User-Agent string might have been allocated already, because
-@@ -4928,6 +5037,29 @@ static bool http_TE_has_token(const char *fvalue, const char *token)
+@@ -4928,6 +5050,29 @@ static bool http_TE_has_token(const char *fvalue, const char *token)
    return FALSE;
  }
  
@@ -1149,7 +1175,7 @@ index 9118c7e..77b0143 100644
  CURLcode Curl_http_req_to_h2(struct dynhds *h2_headers,
                               struct httpreq *req, struct Curl_easy *data)
  {
-@@ -4936,6 +5068,10 @@ CURLcode Curl_http_req_to_h2(struct dynhds *h2_headers,
+@@ -4936,6 +5081,10 @@ CURLcode Curl_http_req_to_h2(struct dynhds *h2_headers,
    size_t i;
    CURLcode result;
  
@@ -1160,7 +1186,7 @@ index 9118c7e..77b0143 100644
    DEBUGASSERT(req);
    DEBUGASSERT(h2_headers);
  
-@@ -4965,20 +5101,46 @@ CURLcode Curl_http_req_to_h2(struct dynhds *h2_headers,
+@@ -4965,20 +5114,46 @@ CURLcode Curl_http_req_to_h2(struct dynhds *h2_headers,
  
    Curl_dynhds_reset(h2_headers);
    Curl_dynhds_set_opts(h2_headers, DYNHDS_OPT_LOWERCASE);
@@ -1218,7 +1244,7 @@ index 9118c7e..77b0143 100644
    for(i = 0; !result && i < Curl_dynhds_count(&req->headers); ++i) {
      e = Curl_dynhds_getn(&req->headers, i);
      /* "TE" is special in that it is only permissible when it
-@@ -4991,6 +5153,8 @@ CURLcode Curl_http_req_to_h2(struct dynhds *h2_headers,
+@@ -4991,6 +5166,8 @@ CURLcode Curl_http_req_to_h2(struct dynhds *h2_headers,
      else if(h2_permissible_field(e)) {
        result = Curl_dynhds_add(h2_headers, e->name, e->namelen,
                                 e->value, e->valuelen);

@@ -978,6 +978,11 @@ def build_curl(src_dir, build_dir, install_dir, output_dir, deps_info, env, arch
     if fix_vla_script.exists():
         run([sys.executable, str(fix_vla_script)], cwd=str(src_dir), env=env, check=False)
 
+    # Fix header merge forward declaration (Bug 2: headers not injected in HTTP/1.1)
+    fix_merge_script = WIN_BUILD_DIR / "fix_merge_forward_decl.py"
+    if fix_merge_script.exists():
+        run([sys.executable, str(fix_merge_script), str(src_dir / "lib")], check=False)
+
     # Fix BoringSSL detection in CMakeLists.txt
     cmakelists = src_dir / "lib" / "CMakeLists.txt"
     if cmakelists.exists():

@@ -162,8 +162,6 @@ def fix_nonstatic_callbacks(lib_dir):
     targets = [
         'Curl_ftp_parselist',
         'Curl_fnmatch',
-        'Curl_share_lock',
-        'Curl_share_unlock',
         'Curl_client_write',
     ]
 
@@ -181,8 +179,9 @@ def fix_nonstatic_callbacks(lib_dir):
         for func_name in targets:
             # Match: <type> <func_name>( at start of line (definition/declaration)
             # NOT: return <func_name>( or = <func_name>( (function call)
+            # Use [^\n]+? (non-greedy) to avoid consuming the space before func_name
             pattern = re.compile(
-                r'(\n\s*[\w\s\*]+\s+)(' + re.escape(func_name) + r')(\s*\()',
+                r'(\n[^\n]+?\s+)(' + re.escape(func_name) + r')(\s*\()',
                 re.MULTILINE
             )
             def replacer(m, fn=func_name):
@@ -200,10 +199,13 @@ def fix_nonstatic_callbacks(lib_dir):
                 if last_word in ('=', 'NULL', '0', '1'):
                     return m.group(0)
                 # Only modify if last word looks like a return type
+                # Must be a C type or start with uppercase (custom type like CURLSHcode)
+                # Must NOT end with ; (that's a statement, not a type)
+                # Must NOT contain * unless it's a pure type (e.g., "void*" is ok but "*list" is not)
                 C_TYPES = {'int', 'size_t', 'void', 'char', 'unsigned', 'long', 'short',
                            'float', 'double', 'bool', 'CURLcode', 'CURL', 'curlioerr',
                            'CURLSTScode', 'ssize_t', 'CURLSHcode', 'static', 'extern'}
-                if last_word in C_TYPES or (last_word and last_word[0].isupper()) or '*' in last_word:
+                if last_word in C_TYPES or (last_word and last_word[0].isupper() and not last_word.startswith('*')):
                     file_count += 1
                     return f'{m.group(1)}__stdcall {m.group(2)}{m.group(3)}'
                 return m.group(0)

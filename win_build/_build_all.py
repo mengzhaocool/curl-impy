@@ -544,6 +544,14 @@ def apply_all_patches(deps_dir, git_exe):
         "libcurl-impersonate.def",
     ])
 
+    # Overwrite libcurl.def (used by CMakeLists.txt) with our curl-only .def
+    # win_build exports only curl API, not dependency library APIs
+    our_def = curl_src / "lib" / "libcurl-impersonate.def"
+    target_def = curl_src / "lib" / "libcurl.def"
+    if our_def.exists():
+        shutil.copy2(str(our_def), str(target_def))
+        log("  Overwrote libcurl.def with curl-only exports (86 symbols)")
+
     # nghttp3 patch
     if not apply_patch(deps_dir / f"nghttp3-{NGHTTP3_VERSION}", PATCHES_DIR / "nghttp3.patch", git_exe):
         log("nghttp3 patch failed, aborting build", "FATAL")
@@ -985,11 +993,9 @@ def build_curl(src_dir, build_dir, install_dir, output_dir, deps_info, env, arch
                 env=env, check=False)
 
     # Patch CMakeLists.txt for DLL export
-    if cmakelists.exists():
-        cmake_dll_script = WIN_BUILD_DIR / "patch_cmake_dll.py"
-        if cmake_dll_script.exists():
-            run([sys.executable, str(cmake_dll_script), str(cmakelists)],
-                env=env, check=False)
+    # NOTE: patch_cmake_dll.py (/WHOLEARCHIVE) is win_build_full only.
+    # win_build exports only curl API via .def file.
+    # Do NOT run patch_cmake_dll.py here.
 
     # Ensure output name is libcurl-impersonate
     lib_cmake = src_dir / "lib" / "CMakeLists.txt"
@@ -1027,6 +1033,7 @@ def build_curl(src_dir, build_dir, install_dir, output_dir, deps_info, env, arch
     cmake_args = [
         "-DBUILD_SHARED_LIBS=ON",
         "-DBUILD_STATIC_LIBS=OFF",
+        "-DCMAKE_WINDOWS_EXPORT_ALL_SYMBOLS=OFF",
         "-DBUILD_CURL_EXE=OFF",
         "-DBUILD_TESTING=OFF",
         # Use static libs for dependencies (adds *_STATICLIB defines)

@@ -625,3 +625,28 @@ class CurlFollow(IntEnum):
     # curl-impersonate: Follow redirects, but reject redirects to
     # internal/private IP addresses (SSRF protection)
     SAFE = 4
+
+
+from typing import NamedTuple
+
+
+class CurlWsFrame(NamedTuple):
+    """WebSocket frame metadata returned by ``Curl.ws_recv``.
+
+    Mirrors libcurl's ``curl_ws_frame`` struct.
+    """
+
+    age: int
+    """Struct age for ABI stability."""
+
+    flags: int
+    """Frame flags bitmask (see :class:`CurlWsFlag`)."""
+
+    offset: int
+    """Offset of this fragment within the full message."""
+
+    bytesleft: int
+    """Bytes remaining in the message after this fragment."""
+
+    len: int
+    """Total length of the frame payload."""

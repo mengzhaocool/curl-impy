@@ -89,42 +89,38 @@ ffi.cdef("""
 # ============================================================================
 
 def _get_dll_path() -> str:
-    """Find the DLL: package libs/ dir, or development path."""
+    """Find the DLL inside the package libs/ directory."""
     bits = struct.calcsize("P") * 8
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
 
     if sys.platform == "win32":
         lib_name = "libcurl-impersonate.dll"
-        # 1. Package libs directory
-        pkg_dir = os.path.dirname(os.path.abspath(__file__))
-        for sub in [f"libs/win_x64" if bits == 64 else "libs/win_x86", "libs"]:
-            candidate = os.path.join(pkg_dir, sub, lib_name)
-            if os.path.isfile(candidate):
-                return candidate
-        # 2. Development path (win_build output first, then win_build_full)
-        dev_paths = [
-            os.path.join(pkg_dir, "..", "output", lib_name),
-            os.path.join(pkg_dir, "..", "win_build_full", "output", lib_name),
+        candidates = [
+            os.path.join(pkg_dir, "libs", f"win_x{'64' if bits == 64 else '86'}", lib_name),
+            os.path.join(pkg_dir, "libs", lib_name),
         ]
-        for p in dev_paths:
-            if os.path.isfile(p):
-                return os.path.abspath(p)
     elif sys.platform == "linux":
         lib_name = "libcurl-impersonate.so"
-        pkg_dir = os.path.dirname(os.path.abspath(__file__))
-        for sub in ["libs/linux_x64", "libs"]:
-            candidate = os.path.join(pkg_dir, sub, lib_name)
-            if os.path.isfile(candidate):
-                return candidate
+        candidates = [
+            os.path.join(pkg_dir, "libs", f"linux_x{'64' if bits == 64 else '86'}", lib_name),
+            os.path.join(pkg_dir, "libs", lib_name),
+        ]
     elif sys.platform == "darwin":
         lib_name = "libcurl-impersonate.dylib"
-        pkg_dir = os.path.dirname(os.path.abspath(__file__))
-        candidate = os.path.join(pkg_dir, "libs", lib_name)
-        if os.path.isfile(candidate):
-            return candidate
+        candidates = [
+            os.path.join(pkg_dir, "libs", f"macos_{'arm64' if bits == 64 else 'x64'}", lib_name),
+            os.path.join(pkg_dir, "libs", lib_name),
+        ]
+    else:
+        raise OSError(f"Unsupported platform: {sys.platform}")
+
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
 
     raise FileNotFoundError(
-        f"Cannot find libcurl-impersonate library. "
-        f"Please place it in curl_impy/libs/"
+        f"Cannot find {lib_name}. "
+        f"Place it in curl_impy/libs/ inside the package directory."
     )
 
 

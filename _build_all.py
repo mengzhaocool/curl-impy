@@ -530,6 +530,12 @@ def apply_all_patches(deps_dir, git_exe):
     if not apply_patch(curl_src, PATCHES_DIR / "fix-h2-header-value-case.patch", git_exe):
         log("fix-h2-header-value-case patch failed, aborting build", "FATAL")
         sys.exit(1)
+
+    # Curl patch: add __stdcall to Curl_share_lock/unlock (replaces fix_merge_forward_decl.py)
+    if not apply_patch(curl_src, PATCHES_DIR / "curl-share-stdcall.patch", git_exe):
+        log("curl-share-stdcall patch failed, aborting build", "FATAL")
+        sys.exit(1)
+
     # Copy new files for curl
     copy_new_files(curl_src, PATCHES_DIR, [
         "cJSON.c", "cJSON.h",
@@ -966,10 +972,9 @@ def build_curl(src_dir, build_dir, install_dir, output_dir, deps_info, env, arch
     if fix_vla_script.exists():
         run([sys.executable, str(fix_vla_script)], cwd=str(src_dir), env=env, check=False)
 
-    # Fix header merge forward declaration (Bug 2: headers not injected in HTTP/1.1)
-    fix_merge_script = WIN_BUILD_DIR / "fix_merge_forward_decl.py"
-    if fix_merge_script.exists():
-        run([sys.executable, str(fix_merge_script), str(src_dir / "lib")], check=False)
+    # fix_merge_forward_decl.py is no longer needed - all its modifications
+    # (slist.h, static, merge call, curl_easy_reset, share_stdcall) are now
+    # included in curl.patch and curl-share-stdcall.patch directly.
 
     # Fix BoringSSL detection in CMakeLists.txt
     cmakelists = src_dir / "lib" / "CMakeLists.txt"

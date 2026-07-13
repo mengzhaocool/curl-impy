@@ -811,14 +811,23 @@ def impersonate_register(target: str, json_config: str) -> None:
     )
     if result != 0:
         raise RuntimeError(f"curl_easy_impersonate_register failed with code {result}")
+    _registered_targets.add(target)
+
+
+_registered_targets: set[str] = set()
 
 
 def impersonate_list() -> list[str]:
-    """List available impersonation targets compiled into the DLL."""
-    return [
+    """List available impersonation targets.
+
+    Returns built-in targets compiled into the DLL plus any targets
+    registered at runtime via :func:`impersonate_register`.
+    """
+    builtin = [
         "chrome", "chrome99", "chrome100", "chrome101", "chrome104",
         "chrome107", "chrome110", "chrome116", "chrome119", "chrome120",
         "chrome123", "chrome124", "chrome131", "chrome133a",
         "edge99", "edge101",
         "safari15_3", "safari15_5", "safari17_0", "safari17_2_1",
     ]
+    return builtin + sorted(_registered_targets - set(builtin))

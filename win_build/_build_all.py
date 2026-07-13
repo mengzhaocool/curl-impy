@@ -1811,9 +1811,6 @@ def main():
             rmtree_safe(ROOT_DIR / dirs["output"])
         # Clean deps (will be re-downloaded and extracted)
         rmtree_safe(ROOT_DIR / "deps")
-        # Clean old patches
-        rmtree_safe(ROOT_DIR / "patches")
-        rmtree_safe(ROOT_DIR / "lexiforest_patches")
         # Clean marker files
         for marker in ["deps/.sources_downloaded", "deps/.all_patched"]:
             p = ROOT_DIR / marker

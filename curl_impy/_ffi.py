@@ -100,10 +100,10 @@ def _get_dll_path() -> str:
             candidate = os.path.join(pkg_dir, sub, lib_name)
             if os.path.isfile(candidate):
                 return candidate
-        # 2. Development path (win_build_full output)
+        # 2. Development path (win_build output first, then win_build_full)
         dev_paths = [
-            os.path.join(pkg_dir, "..", "win_build_full", "output", lib_name),
             os.path.join(pkg_dir, "..", "output", lib_name),
+            os.path.join(pkg_dir, "..", "win_build_full", "output", lib_name),
         ]
         for p in dev_paths:
             if os.path.isfile(p):

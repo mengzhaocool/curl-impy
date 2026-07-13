@@ -1,0 +1,108 @@
+__all__ = [
+    "Curl",
+    "AsyncCurl",
+    "CurlMime",
+    "CurlError",
+    "CurlInfo",
+    "CurlOpt",
+    "CurlMOpt",
+    "CurlECode",
+    "CurlHttpVersion",
+    "CurlFollow",
+    "CurlSslVersion",
+    "CurlWsFlag",
+    "config_warnings",
+    "Fingerprint",
+    "FingerprintManager",
+    "get_fingerprint",
+    "ffi",
+    "lib",
+    "Session",
+    "AsyncSession",
+    "BrowserType",
+    "BrowserTypeLiteral",
+    "request",
+    "head",
+    "get",
+    "post",
+    "put",
+    "patch",
+    "delete",
+    "options",
+    "Cookies",
+    "Headers",
+    "Request",
+    "Response",
+    "AsyncWebSocket",
+    "WebSocket",
+    "WebSocketError",
+    "WebSocketClosed",
+    "WebSocketTimeout",
+    "WebSocketRetryStrategy",
+    "WsCloseCode",
+    "ExtraFingerprints",
+    "CacheBackend",
+    "FileCacheBackend",
+    "CookieTypes",
+    "HeaderTypes",
+    "ProxySpec",
+    "exceptions",
+    "impersonate_register",
+    "impersonate_list",
+]
+
+from .__version__ import __curl_version__, __description__, __title__, __version__  # noqa: F401
+
+# ABI mode: load libcurl-impersonate via ffi.dlopen (replaces curl-cffi's _wrapper)
+from ._ffi import ffi, lib
+from .aio import AsyncCurl
+from .const import (
+    CurlECode,
+    CurlFollow,
+    CurlHttpVersion,
+    CurlInfo,
+    CurlMOpt,
+    CurlOpt,
+    CurlSslVersion,
+    CurlWsFlag,
+)
+from .curl import Curl, CurlError, CurlMime
+from .curl import impersonate_register, impersonate_list  # curl-impy unique
+
+from .requests import (
+    AsyncSession,
+    AsyncWebSocket,
+    BrowserType,
+    BrowserTypeLiteral,
+    CacheBackend,
+    Cookies,
+    CookieTypes,
+    ExtraFingerprints,
+    FileCacheBackend,
+    Headers,
+    HeaderTypes,
+    ProxySpec,
+    Request,
+    Response,
+    Session,
+    WebSocket,
+    WebSocketClosed,
+    WebSocketError,
+    WebSocketTimeout,
+    WebSocketRetryStrategy,
+    WsCloseCode,
+    delete,
+    exceptions,
+    get,
+    head,
+    options,
+    patch,
+    post,
+    put,
+    request,
+)
+
+from .utils import config_warnings
+from .fingerprints import Fingerprint, FingerprintManager, get_fingerprint
+
+config_warnings(on=False)

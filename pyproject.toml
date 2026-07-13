@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "curl-impy"
+version = "0.7.1"
+description = "Python binding for curl-impersonate with custom fingerprint registration"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+dependencies = [
+    "cffi>=1.0",
+    "certifi",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "psutil"]
+
+[tool.setuptools.packages.find]
+include = ["curl_impy*"]
+
+[tool.setuptools.package-data]
+curl_impy = ["libs/**/*.dll", "libs/**/*.so", "libs/**/*.dylib"]

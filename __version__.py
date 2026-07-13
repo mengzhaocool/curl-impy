@@ -1,6 +1,6 @@
 __title__ = "curl_impy"
 __description__ = "Python binding for curl-impersonate via CFFI ABI mode."
-__version__ = "0.7.0"
+__version__ = "0.7.1"
 
 
 def _resolve_curl_version() -> str:

@@ -95,6 +95,7 @@ ffi.cdef("""
 
     // curl-impersonate extensions (not in upstream libcurl)
     int curl_easy_impersonate_register(const char *target, const char *json_config);
+    char *curl_easy_impersonate_list(void);
 """)
 
 # ============================================================================

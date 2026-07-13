@@ -22,6 +22,15 @@ def fix_http_c(lib_dir):
         content = f.read()
     original = content
     
+    # 0. Add #include "slist.h" if missing (needed for Curl_slist_duplicate)
+    if '#include "slist.h"' not in content:
+        # Add after the last #include
+        last_include = content.rfind('#include ')
+        if last_include >= 0:
+            end_of_line = content.index('\n', last_include) + 1
+            content = content[:end_of_line] + '#include "slist.h"\n' + content[end_of_line:]
+            print("[fix] Added #include \"slist.h\" to http.c")
+    
     # 1. Add forward declaration
     func_sig = "CURLcode Curl_add_custom_headers(struct Curl_easy *data,"
     if func_sig in content:
@@ -55,6 +64,20 @@ def fix_http_c(lib_dir):
         print("[fix] http.c patched")
     else:
         print("[fix] http.c no changes needed")
+    
+    # 3. Fix merge function definition: add 'static', remove unused 'int i;'
+    with open(http_c, 'r', encoding='utf-8', errors='replace') as f:
+        content = f.read()
+    original = content
+    # Replace: CURLcode Curl_http_merge_headers( -> static CURLcode Curl_http_merge_headers(
+    content = content.replace(
+        'CURLcode Curl_http_merge_headers(struct Curl_easy *data)\n{\n  int i;\n',
+        'static CURLcode Curl_http_merge_headers(struct Curl_easy *data)\n{\n'
+    )
+    if content != original:
+        with open(http_c, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print("[fix] Fixed merge function definition (static + removed int i)")
 
 def fix_share_stdcall(lib_dir):
     """Add __stdcall to Curl_share_lock/unlock in .c and .h files."""

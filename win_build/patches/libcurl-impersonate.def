@@ -33,9 +33,9 @@ EXPORTS
     curl_share_init
     curl_share_setopt
     curl_share_cleanup
+    curl_share_strerror
     curl_version_info
     curl_easy_strerror
-    curl_share_strerror
     curl_easy_pause
     curl_easy_ssls_import
     curl_easy_ssls_export
@@ -52,6 +52,24 @@ EXPORTS
     curl_easy_recv
     curl_easy_send
     curl_easy_upkeep
+    curl_easy_header
+    curl_easy_nextheader
+    curl_easy_option_by_name
+    curl_easy_option_by_id
+    curl_easy_option_next
+    curl_formadd
+    curl_formfree
+    curl_formget
+    curl_maprintf
+    curl_mfprintf
+    curl_mprintf
+    curl_msnprintf
+    curl_msprintf
+    curl_mvaprintf
+    curl_mvfprintf
+    curl_mvprintf
+    curl_mvsnprintf
+    curl_mvsprintf
     curl_multi_init
     curl_multi_add_handle
     curl_multi_remove_handle
@@ -63,7 +81,9 @@ EXPORTS
     curl_multi_cleanup
     curl_multi_info_read
     curl_multi_strerror
+    curl_multi_socket
     curl_multi_socket_action
+    curl_multi_socket_all
     curl_multi_timeout
     curl_multi_setopt
     curl_multi_assign
@@ -84,6 +104,3 @@ EXPORTS
     curl_ws_send
     curl_ws_start_frame
     curl_ws_meta
-    curl_easy_option_by_name
-    curl_easy_option_by_id
-    curl_easy_option_next

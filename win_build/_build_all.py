@@ -531,10 +531,8 @@ def apply_all_patches(deps_dir, git_exe):
         log("fix-h2-header-value-case patch failed, aborting build", "FATAL")
         sys.exit(1)
 
-    # Curl patch: add __stdcall to Curl_share_lock/unlock (replaces fix_merge_forward_decl.py)
-    if not apply_patch(curl_src, PATCHES_DIR / "curl-share-stdcall.patch", git_exe):
-        log("curl-share-stdcall patch failed, aborting build", "FATAL")
-        sys.exit(1)
+    # NOTE: curl-share-stdcall.patch is win_build_full only (stdcall callbacks).
+    # win_build keeps original cdecl calling convention.
 
     # Copy new files for curl
     copy_new_files(curl_src, PATCHES_DIR, [

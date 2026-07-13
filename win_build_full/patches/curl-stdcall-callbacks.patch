@@ -1,0 +1,456 @@
+diff --git a/include/curl/curl.h b/include/curl/curl.h
+index b6210f1..f32fd03 100644
+--- a/include/curl/curl.h
++++ b/include/curl/curl.h
+@@ -239,7 +239,7 @@ struct curl_httppost {
+ 
+ /* This is the CURLOPT_PROGRESSFUNCTION callback prototype. It is now
+    considered deprecated but was the only choice up until 7.31.0 */
+-typedef int (*curl_progress_callback)(void *clientp,
++typedef int (__stdcall *curl_progress_callback)(void *clientp,
+                                       double dltotal,
+                                       double dlnow,
+                                       double ultotal,
+@@ -248,7 +248,7 @@ typedef int (*curl_progress_callback)(void *clientp,
+ /* This is the CURLOPT_XFERINFOFUNCTION callback prototype. It was introduced
+    in 7.32.0, avoids the use of floating point numbers and provides more
+    detailed information. */
+-typedef int (*curl_xferinfo_callback)(void *clientp,
++typedef int (__stdcall *curl_xferinfo_callback)(void *clientp,
+                                       curl_off_t dltotal,
+                                       curl_off_t dlnow,
+                                       curl_off_t ultotal,
+@@ -284,13 +284,13 @@ typedef int (*curl_xferinfo_callback)(void *clientp,
+    signals an error from the callback. */
+ #define CURL_WRITEFUNC_ERROR 0xFFFFFFFF
+ 
+-typedef size_t (*curl_write_callback)(char *buffer,
++typedef size_t (__stdcall *curl_write_callback)(char *buffer,
+                                       size_t size,
+                                       size_t nitems,
+                                       void *outstream);
+ 
+ /* This callback is called when a new resolver request is made */
+-typedef int (*curl_resolver_start_callback)(void *resolver_state,
++typedef int (__stdcall *curl_resolver_start_callback)(void *resolver_state,
+                                             void *reserved, void *userdata);
+ 
+ /* enumeration of file types */
+@@ -353,7 +353,7 @@ struct curl_fileinfo {
+ /* if splitting of data transfer is enabled, this callback is called before
+    download of an individual chunk started. Note that parameter "remains" works
+    only for FTP wildcard downloading (for now), otherwise is not used */
+-typedef long (*curl_chunk_bgn_callback)(const void *transfer_info,
++typedef long (__stdcall *curl_chunk_bgn_callback)(const void *transfer_info,
+                                         void *ptr,
+                                         int remains);
+ 
+@@ -367,7 +367,7 @@ typedef long (*curl_chunk_bgn_callback)(const void *transfer_info,
+    Even if downloading of this chunk was skipped in CHUNK_BGN_FUNC.
+    This is the reason why we do not need "transfer_info" parameter in this
+    callback and we are not interested in "remains" parameter too. */
+-typedef long (*curl_chunk_end_callback)(void *ptr);
++typedef long (__stdcall *curl_chunk_end_callback)(void *ptr);
+ 
+ /* return codes for FNMATCHFUNCTION */
+ #define CURL_FNMATCHFUNC_MATCH    0 /* string corresponds to the pattern */
+@@ -376,7 +376,7 @@ typedef long (*curl_chunk_end_callback)(void *ptr);
+ 
+ /* callback type for wildcard downloading pattern matching. If the
+    string matches the pattern, return CURL_FNMATCHFUNC_MATCH value, etc. */
+-typedef int (*curl_fnmatch_callback)(void *ptr,
++typedef int (__stdcall *curl_fnmatch_callback)(void *ptr,
+                                      const char *pattern,
+                                      const char *string);
+ 
+@@ -385,7 +385,7 @@ typedef int (*curl_fnmatch_callback)(void *ptr,
+ #define CURL_SEEKFUNC_FAIL     1 /* fail the entire transfer */
+ #define CURL_SEEKFUNC_CANTSEEK 2 /* tell libcurl seeking cannot be done, so
+                                     libcurl might try other means instead */
+-typedef int (*curl_seek_callback)(void *instream,
++typedef int (__stdcall *curl_seek_callback)(void *instream,
+                                   curl_off_t offset,
+                                   int origin); /* 'whence' */
+ 
+@@ -403,12 +403,12 @@ typedef int (*curl_seek_callback)(void *instream,
+   want to abort the request */
+ #define CURL_TRAILERFUNC_ABORT 1
+ 
+-typedef size_t (*curl_read_callback)(char *buffer,
++typedef size_t (__stdcall *curl_read_callback)(char *buffer,
+                                      size_t size,
+                                      size_t nitems,
+                                      void *instream);
+ 
+-typedef int (*curl_trailer_callback)(struct curl_slist **list,
++typedef int (__stdcall *curl_trailer_callback)(struct curl_slist **list,
+                                      void *userdata);
+ 
+ typedef enum {
+@@ -424,7 +424,7 @@ typedef enum {
+                                 CURLE_ABORTED_BY_CALLBACK */
+ #define CURL_SOCKOPT_ALREADY_CONNECTED 2
+ 
+-typedef int (*curl_sockopt_callback)(void *clientp,
++typedef int (__stdcall *curl_sockopt_callback)(void *clientp,
+                                      curl_socket_t curlfd,
+                                      curlsocktype purpose);
+ 
+@@ -439,12 +439,12 @@ struct curl_sockaddr {
+ };
+ 
+ typedef curl_socket_t
+-(*curl_opensocket_callback)(void *clientp,
++(__stdcall *curl_opensocket_callback)(void *clientp,
+                             curlsocktype purpose,
+                             struct curl_sockaddr *address);
+ 
+ typedef int
+-(*curl_closesocket_callback)(void *clientp, curl_socket_t item);
++(__stdcall *curl_closesocket_callback)(void *clientp, curl_socket_t item);
+ 
+ typedef enum {
+   CURLIOE_OK,            /* I/O operation successful */
+@@ -459,7 +459,7 @@ typedef enum {
+   CURLIOCMD_LAST         /* never use */
+ } curliocmd;
+ 
+-typedef curlioerr (*curl_ioctl_callback)(CURL *handle,
++typedef curlioerr (__stdcall *curl_ioctl_callback)(CURL *handle,
+                                          int cmd,
+                                          void *clientp);
+ 
+@@ -491,7 +491,7 @@ typedef enum {
+   CURLINFO_END
+ } curl_infotype;
+ 
+-typedef int (*curl_debug_callback)
++typedef int (__stdcall *curl_debug_callback)
+        (CURL *handle,      /* the handle/transfer this concerns */
+         curl_infotype type, /* what kind of data */
+         char *data,        /* points to the data */
+@@ -499,7 +499,7 @@ typedef int (*curl_debug_callback)
+         void *userptr);    /* whatever the user please */
+ 
+ /* This is the CURLOPT_PREREQFUNCTION callback prototype. */
+-typedef int (*curl_prereq_callback)(void *clientp,
++typedef int (__stdcall *curl_prereq_callback)(void *clientp,
+                                     char *conn_primary_ip,
+                                     char *conn_local_ip,
+                                     int conn_primary_port,
+@@ -782,9 +782,9 @@ typedef enum {
+ } CURLproxycode;
+ 
+ /* This prototype applies to all conversion callbacks */
+-typedef CURLcode (*curl_conv_callback)(char *buffer, size_t length);
++typedef CURLcode (__stdcall *curl_conv_callback)(char *buffer, size_t length);
+ 
+-typedef CURLcode (*curl_ssl_ctx_callback)(CURL *curl,    /* easy handle */
++typedef CURLcode (__stdcall *curl_ssl_ctx_callback)(CURL *curl,    /* easy handle */
+                                           void *ssl_ctx, /* actually an OpenSSL
+                                                             or wolfSSL SSL_CTX,
+                                                             or an mbedTLS
+@@ -1063,10 +1063,10 @@ typedef enum {
+   CURLSTS_FAIL
+ } CURLSTScode;
+ 
+-typedef CURLSTScode (*curl_hstsread_callback)(CURL *easy,
++typedef CURLSTScode (__stdcall *curl_hstsread_callback)(CURL *easy,
+                                               struct curl_hstsentry *e,
+                                               void *userp);
+-typedef CURLSTScode (*curl_hstswrite_callback)(CURL *easy,
++typedef CURLSTScode (__stdcall *curl_hstswrite_callback)(CURL *easy,
+                                                struct curl_hstsentry *e,
+                                                struct curl_index *i,
+                                                void *userp);
+@@ -2768,7 +2768,7 @@ curl_formadd(struct curl_httppost **httppost,
+  * Should return the buffer length passed to it as the argument "len" on
+  *   success.
+  */
+-typedef size_t (*curl_formget_callback)(void *arg, const char *buf,
++typedef size_t (__stdcall *curl_formget_callback)(void *arg, const char *buf,
+                                         size_t len);
+ 
+ /*
+@@ -3173,11 +3173,11 @@ typedef enum {
+   CURL_LOCK_ACCESS_LAST        /* never use */
+ } curl_lock_access;
+ 
+-typedef void (*curl_lock_function)(CURL *handle,
++typedef void (__stdcall *curl_lock_function)(CURL *handle,
+                                    curl_lock_data data,
+                                    curl_lock_access locktype,
+                                    void *userptr);
+-typedef void (*curl_unlock_function)(CURL *handle,
++typedef void (__stdcall *curl_unlock_function)(CURL *handle,
+                                      curl_lock_data data,
+                                      void *userptr);
+ 
+diff --git a/lib/curl_fnmatch.c b/lib/curl_fnmatch.c
+index dde956c..a1d0270 100644
+--- a/lib/curl_fnmatch.c
++++ b/lib/curl_fnmatch.c
+@@ -346,7 +346,7 @@ static int loop(const unsigned char *pattern, const unsigned char *string,
+ /*
+  * @unittest: 1307
+  */
+-int Curl_fnmatch(void *ptr, const char *pattern, const char *string)
++int __stdcall Curl_fnmatch(void *ptr, const char *pattern, const char *string)
+ {
+   (void)ptr; /* the argument is specified by the curl_fnmatch_callback
+                 prototype, but not used by Curl_fnmatch() */
+@@ -362,7 +362,7 @@ int Curl_fnmatch(void *ptr, const char *pattern, const char *string)
+ /*
+  * @unittest: 1307
+  */
+-int Curl_fnmatch(void *ptr, const char *pattern, const char *string)
++int __stdcall Curl_fnmatch(void *ptr, const char *pattern, const char *string)
+ {
+   (void)ptr; /* the argument is specified by the curl_fnmatch_callback
+                 prototype, but not used by Curl_fnmatch() */
+diff --git a/lib/curl_fnmatch.h b/lib/curl_fnmatch.h
+index 61d2a0c..526e377 100644
+--- a/lib/curl_fnmatch.h
++++ b/lib/curl_fnmatch.h
+@@ -40,6 +40,6 @@
+  * keywords: alnum, digit, xdigit, alpha, print, blank, lower, graph, space
+  *           and upper (use as "[[:alnum:]]")
+  */
+-int Curl_fnmatch(void *ptr, const char *pattern, const char *string);
++int __stdcall Curl_fnmatch(void *ptr, const char *pattern, const char *string);
+ 
+ #endif /* HEADER_CURL_FNMATCH_H */
+diff --git a/lib/formdata.c b/lib/formdata.c
+index 3619c15..0606c14 100644
+--- a/lib/formdata.c
++++ b/lib/formdata.c
+@@ -35,6 +35,14 @@ struct Curl_easy;
+ #include "bufref.h"
+ #include "curlx/fopen.h"
+ 
++/* __stdcall wrappers for CRT functions used as curl callbacks (x86 stdcall) */
++static size_t __stdcall curl_fread_callback(char *buf, size_t sz, size_t nm, void *p) {
++    return fread(buf, sz, nm, (FILE *)p);
++}
++static int __stdcall curl_fseek_callback(void *p, curl_off_t offset, int whence) {
++    return fseek((FILE *)p, (long)offset, whence);
++}
++
+ 
+ #define HTTPPOST_PTRNAME     CURL_HTTPPOST_PTRNAME
+ #define HTTPPOST_FILENAME    CURL_HTTPPOST_FILENAME
+@@ -791,8 +799,8 @@ CURLcode Curl_getformdata(CURL *data,
+ #pragma clang diagnostic ignored "-Wcast-function-type-strict"
+ #endif
+             result = curl_mime_data_cb(part, (curl_off_t)-1,
+-                                       (curl_read_callback)fread,
+-                                       curlx_fseek,
++                                       curl_fread_callback,
++                                       curl_fseek_callback,
+                                        NULL, (void *)stdin);
+ #if defined(__clang__) && __clang_major__ >= 16
+ #pragma clang diagnostic pop
+diff --git a/lib/ftplistparser.c b/lib/ftplistparser.c
+index b5d9338..49bb2c7 100644
+--- a/lib/ftplistparser.c
++++ b/lib/ftplistparser.c
+@@ -1010,7 +1010,7 @@ static CURLcode parse_winnt(struct Curl_easy *data,
+   return CURLE_OK;
+ }
+ 
+-size_t Curl_ftp_parselist(char *buffer, size_t size, size_t nmemb,
++size_t __stdcall Curl_ftp_parselist(char *buffer, size_t size, size_t nmemb,
+                           void *connptr)
+ {
+   size_t bufflen = size * nmemb;
+diff --git a/lib/ftplistparser.h b/lib/ftplistparser.h
+index 5d7aa49..f8463cb 100644
+--- a/lib/ftplistparser.h
++++ b/lib/ftplistparser.h
+@@ -28,7 +28,7 @@
+ #ifndef CURL_DISABLE_FTP
+ 
+ /* WRITEFUNCTION callback for parsing LIST responses */
+-size_t Curl_ftp_parselist(char *buffer, size_t size, size_t nmemb,
++size_t __stdcall Curl_ftp_parselist(char *buffer, size_t size, size_t nmemb,
+                           void *connptr);
+ 
+ struct ftp_parselist_data; /* defined inside ftplibparser.c */
+diff --git a/lib/mime.c b/lib/mime.c
+index 5595ab0..6d357af 100644
+--- a/lib/mime.c
++++ b/lib/mime.c
+@@ -1063,6 +1063,24 @@ static void cleanup_part_content(curl_mimepart *part)
+   part->state.state = MIMESTATE_BEGIN;
+ }
+ 
++
++/* __stdcall wrappers for internal mime callbacks (x86 stdcall) */
++static size_t __stdcall mime_mem_read_cb(char *b, size_t s, size_t n, void *p) {
++    return mime_mem_read(b, s, n, p);
++}
++static int __stdcall mime_mem_seek_cb(void *p, curl_off_t o, int w) {
++    return mime_mem_seek(p, o, w);
++}
++static size_t __stdcall mime_file_read_cb(char *b, size_t s, size_t n, void *p) {
++    return mime_file_read(b, s, n, p);
++}
++static int __stdcall mime_file_seek_cb(void *p, curl_off_t o, int w) {
++    return mime_file_seek(p, o, w);
++}
++static int __stdcall mime_subparts_seek_cb(void *p, curl_off_t o, int w) {
++    return mime_subparts_seek(p, o, w);
++}
++
+ static void mime_subparts_free(void *ptr)
+ {
+   curl_mime *mime = (curl_mime *)ptr;
+@@ -1308,8 +1326,8 @@ CURLcode curl_mime_data(curl_mimepart *part, const char *data, size_t datasize)
+       return CURLE_OUT_OF_MEMORY;
+ 
+     part->datasize = datasize;
+-    part->readfunc = mime_mem_read;
+-    part->seekfunc = mime_mem_seek;
++    part->readfunc = mime_mem_read_cb;
++    part->seekfunc = mime_mem_seek_cb;
+     part->freefunc = mime_mem_free;
+     part->flags |= MIME_FAST_READ;
+     part->kind = MIMEKIND_DATA;
+@@ -1342,10 +1360,10 @@ CURLcode curl_mime_filedata(curl_mimepart *part, const char *filename)
+         part->datasize = -1;
+         if(S_ISREG(sbuf.st_mode)) {
+           part->datasize = filesize(filename, sbuf);
+-          part->seekfunc = mime_file_seek;
++          part->seekfunc = mime_file_seek_cb;
+         }
+ 
+-        part->readfunc = mime_file_read;
++        part->readfunc = mime_file_read_cb;
+         part->freefunc = mime_file_free;
+         part->kind = MIMEKIND_FILE;
+ 
+@@ -1497,7 +1515,7 @@ CURLcode Curl_mime_set_subparts(curl_mimepart *part,
+ 
+     subparts->parent = part;
+     /* Subparts are processed internally: no read callback. */
+-    part->seekfunc = mime_subparts_seek;
++    part->seekfunc = mime_subparts_seek_cb;
+     part->freefunc = take_ownership ? mime_subparts_free :
+       mime_subparts_unbind;
+     part->arg = subparts;
+diff --git a/lib/sendf.c b/lib/sendf.c
+index 7c977d3..be595d3 100644
+--- a/lib/sendf.c
++++ b/lib/sendf.c
+@@ -44,6 +44,11 @@
+ #include "multiif.h"
+ #include "progress.h"
+ 
++/* __stdcall wrapper for fread (same as url.c's curl_fread_default_cb) */
++static size_t __stdcall curl_fread_default_cb(char *buf, size_t sz, size_t nm, void *p) {
++    return fread(buf, sz, nm, (FILE *)p);
++}
++
+ static void cl_reset_writer(struct Curl_easy *data)
+ {
+   struct Curl_cwriter *writer = data->req.writer_stack;
+@@ -372,7 +377,7 @@ static CURLcode do_init_writer_stack(struct Curl_easy *data)
+    The bit pattern defines to what "streams" to write to. Body and/or header.
+    The defines are in sendf.h of course.
+  */
+-CURLcode Curl_client_write(struct Curl_easy *data, int type, const char *buf,
++CURLcode __stdcall Curl_client_write(struct Curl_easy *data, int type, const char *buf,
+                            size_t len)
+ {
+   CURLcode result;
+@@ -857,7 +862,7 @@ static CURLcode cr_in_rewind(struct Curl_easy *data,
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wcast-function-type-strict"
+ #endif
+-    if(data->state.fread_func == (curl_read_callback)fread) {
++    if(data->state.fread_func == curl_fread_default_cb) {
+ #if defined(__clang__) && __clang_major__ >= 16
+ #pragma clang diagnostic pop
+ #endif
+diff --git a/lib/sendf.h b/lib/sendf.h
+index 75c6e24..61c4803 100644
+--- a/lib/sendf.h
++++ b/lib/sendf.h
+@@ -58,7 +58,7 @@ struct Curl_easy;
+  * Write `len` bytes at `buf` to the client. `type` indicates what
+  * kind of data is being written.
+  */
+-CURLcode Curl_client_write(struct Curl_easy *data, int type, const char *buf,
++CURLcode __stdcall Curl_client_write(struct Curl_easy *data, int type, const char *buf,
+                            size_t len) WARN_UNUSED_RESULT;
+ 
+ /**
+diff --git a/lib/setopt.c b/lib/setopt.c
+index 5ab3a5d..44c5656 100644
+--- a/lib/setopt.c
++++ b/lib/setopt.c
+@@ -52,6 +52,14 @@
+ #include "bufref.h"
+ #include "vauth/vauth.h"
+ 
++/* __stdcall wrappers for CRT functions used as default callbacks (x86 stdcall) */
++static size_t __stdcall curl_fwrite_callback(char *ptr, size_t size, size_t nmemb, void *stream) {
++    return fwrite(ptr, size, nmemb, (FILE *)stream);
++}
++static size_t __stdcall curl_fread_default_cb(char *buf, size_t sz, size_t nm, void *p) {
++    return fread(buf, sz, nm, (FILE *)p);
++}
++
+ static CURLcode setopt_set_timeout_sec(timediff_t *ptimeout_ms, long secs)
+ {
+   if(secs < 0)
+@@ -2764,7 +2772,7 @@ static CURLcode setopt_func(struct Curl_easy *data, CURLoption option,
+ #pragma clang diagnostic ignored "-Wcast-function-type-strict"
+ #endif
+       /* When set to NULL, reset to our internal default function */
+-      s->fwrite_func = (curl_write_callback)fwrite;
++      s->fwrite_func = curl_fwrite_callback;
+ #if defined(__clang__) && __clang_major__ >= 16
+ #pragma clang diagnostic pop
+ #endif
+@@ -2781,7 +2789,7 @@ static CURLcode setopt_func(struct Curl_easy *data, CURLoption option,
+ #pragma clang diagnostic ignored "-Wcast-function-type-strict"
+ #endif
+       /* When set to NULL, reset to our internal default function */
+-      s->fread_func_set = (curl_read_callback)fread;
++      s->fread_func_set = curl_fread_default_cb;
+ #if defined(__clang__) && __clang_major__ >= 16
+ #pragma clang diagnostic pop
+ #endif
+diff --git a/lib/url.c b/lib/url.c
+index 8b362d3..2f92426 100644
+--- a/lib/url.c
++++ b/lib/url.c
+@@ -118,6 +118,14 @@
+ #include "smtp.h"
+ #include "ws.h"
+ 
++/* __stdcall wrappers for CRT functions used as default callbacks (x86 stdcall) */
++static size_t __stdcall curl_fwrite_callback(char *ptr, size_t size, size_t nmemb, void *stream) {
++    return fwrite(ptr, size, nmemb, (FILE *)stream);
++}
++static size_t __stdcall curl_fread_default_cb(char *buf, size_t sz, size_t nm, void *p) {
++    return fread(buf, sz, nm, (FILE *)p);
++}
++
+ #ifdef USE_NGHTTP2
+ static void data_priority_cleanup(struct Curl_easy *data);
+ #else
+@@ -333,10 +341,10 @@ void Curl_init_userdefined(struct Curl_easy *data)
+ #pragma clang diagnostic ignored "-Wcast-function-type-strict"
+ #endif
+   /* use fwrite as default function to store output */
+-  set->fwrite_func = (curl_write_callback)fwrite;
++  set->fwrite_func = curl_fwrite_callback;
+ 
+   /* use fread as default function to read input */
+-  set->fread_func_set = (curl_read_callback)fread;
++  set->fread_func_set = curl_fread_default_cb;
+ #if defined(__clang__) && __clang_major__ >= 16
+ #pragma clang diagnostic pop
+ #endif

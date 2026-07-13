@@ -26,6 +26,8 @@ __all__ = [
     "WsCloseCode",
     "ExtraFingerprints",
     "RetryStrategy",
+    "CacheBackend",
+    "FileCacheBackend",
     "CookieTypes",
     "HeaderTypes",
     "ProxySpec",
@@ -34,8 +36,9 @@ __all__ = [
 from typing import Optional, TYPE_CHECKING, TypedDict
 
 from ..const import CurlWsFlag
+from .cache import CacheBackend, FileCacheBackend
 from .cookies import Cookies, CookieTypes
-from .errors import RequestsError  # noqa
+from .errors import RequestsError
 from .headers import Headers, HeaderTypes
 from .impersonate import BrowserType, BrowserTypeLiteral, ExtraFingerprints
 from .models import Request, Response
@@ -107,7 +110,7 @@ def request(
         accept_encoding: shortcut for setting accept-encoding header.
         content_callback: a callback function to receive response body.
             ``def callback(chunk: bytes) -> None:``
-        impersonate: which browser version to impersonate.
+        impersonate: which browser version or fingerprint to impersonate.
         ja3: ja3 string to impersonate.
         akamai: akamai string to impersonate.
         extra_fp: extra fingerprints options, in complement to ja3 and akamai strings.
@@ -125,7 +128,7 @@ def request(
         curl_options: extra curl options to use.
         http_version: limiting http version, defaults to http2.
         debug: print extra curl debug info.
-        interface: which interface to use.
+        interface: interface name or local IP to bind to (bare IP = source address).
         cert: a tuple of (cert, key) filenames for client cert.
         stream: streaming the response, default False.
         max_recv_speed: maximum receive speed, bytes per second.

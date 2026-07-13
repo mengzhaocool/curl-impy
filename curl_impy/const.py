@@ -345,6 +345,7 @@ class CurlOpt(IntEnum):
     QUIC_TRANSPORT_PARAMETERS = 10000 + 1027
     HTTP3_SIG_HASH_ALGS = 10000 + 1028
     HTTP3_TLS_EXTENSION_ORDER = 10000 + 1029
+    HTTPHEADER_ORDER = 10000 + 1030
 
     if locals().get("WRITEDATA"):
         FILE = locals().get("WRITEDATA")
@@ -585,6 +586,7 @@ class CurlWsFlag(IntEnum):
     CLOSE = 1 << 3
     PING = 1 << 4
     OFFSET = 1 << 5
+    PONG = 1 << 6
 
 
 class CurlSslVersion(IntEnum):
@@ -612,7 +614,7 @@ class CurlIpResolve(IntEnum):
 class CurlFollow(IntEnum):
     """``CURLFOLLOW_*`` consts for redirect behavior"""
 
-    # /* generic follow redirects
+    # generic follow redirects
     ALL = 1
 
     # Do not use the custom method in the follow-up request if the HTTP code
@@ -625,28 +627,3 @@ class CurlFollow(IntEnum):
     # curl-impersonate: Follow redirects, but reject redirects to
     # internal/private IP addresses (SSRF protection)
     SAFE = 4
-
-
-from typing import NamedTuple
-
-
-class CurlWsFrame(NamedTuple):
-    """WebSocket frame metadata returned by ``Curl.ws_recv``.
-
-    Mirrors libcurl's ``curl_ws_frame`` struct.
-    """
-
-    age: int
-    """Struct age for ABI stability."""
-
-    flags: int
-    """Frame flags bitmask (see :class:`CurlWsFlag`)."""
-
-    offset: int
-    """Offset of this fragment within the full message."""
-
-    bytesleft: int
-    """Bytes remaining in the message after this fragment."""
-
-    len: int
-    """Total length of the frame payload."""

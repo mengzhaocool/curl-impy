@@ -8,7 +8,7 @@ from collections.abc import Awaitable, Callable
 from datetime import timedelta
 
 from ..curl import Curl
-from ..utils import CurlImpyWarning
+from ..utils import CurlCffiWarning
 from .cookies import Cookies
 from .exceptions import HTTPError, RequestException
 from .headers import Headers
@@ -24,7 +24,26 @@ with suppress(ImportError):
     import readability as rd
 
 CHARSET_RE = re.compile(r"charset=([\w-]+)")
+# https://www.rfc-editor.org/rfc/rfc7159#section-8.1
+JSON_NATIVE_ENCODINGS = {
+    "utf-8",
+    "utf8",
+    "utf-8-sig",
+    "utf-16",
+    "utf16",
+    "utf-16-be",
+    "utf-16-le",
+    "utf-16be",
+    "utf-16le",
+    "utf-32",
+    "utf32",
+    "utf-32-be",
+    "utf-32-le",
+    "utf-32be",
+    "utf-32le",
+}
 STREAM_END = object()
+REDIRECT_STATI = (301, 302, 303, 307, 308)
 
 
 def clear_queue(q: queue.Queue):
@@ -192,6 +211,11 @@ class Response:
         if not self.ok:
             raise HTTPError(f"HTTP Error {self.status_code}: {self.reason}", 0, self)
 
+    @property
+    def is_redirect(self) -> bool:
+        """Whether this response is a well-formed redirect."""
+        return "location" in self.headers and self.status_code in REDIRECT_STATI
+
     def iter_lines(self, chunk_size=None, decode_unicode=False, delimiter=None):
         """
         iterate streaming content line by line, separated by ``\\n``.
@@ -225,7 +249,7 @@ class Response:
         if chunk_size:
             warnings.warn(
                 "chunk_size is ignored, there is no way to tell curl that.",
-                CurlImpyWarning,
+                CurlCffiWarning,
                 stacklevel=2,
             )
         if decode_unicode:
@@ -250,6 +274,11 @@ class Response:
 
     def json(self, **kw):
         """return a parsed json object of the content."""
+        charset_encoding = self.charset_encoding
+        if charset_encoding is not None:
+            encoding = charset_encoding.lower().replace("_", "-")
+            if encoding not in JSON_NATIVE_ENCODINGS:
+                return loads(self.text, **kw)
         return loads(self.content, **kw)
 
     def close(self):
@@ -303,7 +332,7 @@ class Response:
         if chunk_size:
             warnings.warn(
                 "chunk_size is ignored, there is no way to tell curl that.",
-                CurlImpyWarning,
+                CurlCffiWarning,
                 stacklevel=2,
             )
         if decode_unicode:

@@ -14,7 +14,7 @@ from typing import Optional, Union
 from collections.abc import Iterator, MutableMapping
 from urllib.parse import urlparse
 
-from ..utils import CurlImpyWarning
+from ..utils import CurlCffiWarning
 from .errors import CookieConflict, RequestsError
 
 CookieTypes = Union["Cookies", CookieJar, dict[str, str], list[tuple[str, str]]]
@@ -198,7 +198,7 @@ class Cookies(MutableMapping[str, str]):
         if name.startswith("__Secure-") and secure is False:
             warnings.warn(
                 "`secure` changed to True for `__Secure-` prefixed cookies",
-                CurlImpyWarning,
+                CurlCffiWarning,
                 stacklevel=2,
             )
             secure = True
@@ -206,7 +206,7 @@ class Cookies(MutableMapping[str, str]):
             warnings.warn(
                 "`host` changed to True, `domain` removed, `path` changed to `/` "
                 "for `__Host-` prefixed cookies",
-                CurlImpyWarning,
+                CurlCffiWarning,
                 stacklevel=2,
             )
             secure = True

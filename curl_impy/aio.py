@@ -8,7 +8,7 @@ from weakref import WeakKeyDictionary
 from ._ffi import ffi, lib
 from .const import CurlECode, CurlMOpt
 from .curl import DEFAULT_CACERT, Curl, CurlError
-from .utils import CurlImpyWarning
+from .utils import CurlCffiWarning
 
 __all__ = ["AsyncCurl"]
 
@@ -41,7 +41,7 @@ if sys.platform == "win32":
         ):
             return asyncio_loop
 
-        warnings.warn(PROACTOR_WARNING, CurlImpyWarning, stacklevel=2)
+        warnings.warn(PROACTOR_WARNING, CurlCffiWarning, stacklevel=2)
 
         from ._asyncio_selector import AddThreadSelectorEventLoop
 
@@ -67,6 +67,7 @@ else:
     def get_selector(loop: asyncio.AbstractEventLoop) -> asyncio.AbstractEventLoop:
         return loop
 
+
 CURL_POLL_NONE = 0
 CURL_POLL_IN = 1
 CURL_POLL_OUT = 2
@@ -85,6 +86,7 @@ CURLMSG_DONE = 1
 CURLPIPE_NOTHING = 0
 CURLPIPE_HTTP1 = 1  # deprecated
 CURLPIPE_MULTIPLEX = 2
+
 
 """
 libcurl provides an event-based system for multiple handles with the following API:
@@ -111,92 +113,61 @@ When idle, libcurl will call the timer_function callback, which sets up a later 
 for socket_action to detect events.
 """
 
-# ============================================================================
-# ABI-mode callback adapters
-#
-# In curl-cffi (API mode), these are registered with @ffi.def_extern() and
-# referenced as lib.timer_function / lib.socket_function.
-# In curl-impy (ABI mode), we use ffi.callback() to create C function pointers.
-# The callback logic is copied verbatim from curl-cffi — no try/except wrappers
-# that would silently swallow errors (which caused the Windows async hang).
-# ============================================================================
 
-# Keep references to prevent GC (ffi.callback objects must stay alive)
-_callback_refs: set = set()
+def _timer_function_impl(curlm, timeout_ms: int, clientp: Any) -> int:
+    """
+    see: https://curl.se/libcurl/c/CURLMOPT_TIMERFUNCTION.html
+    """
+    async_curl = ffi.from_handle(clientp)
 
-_TIMER_CB_SIG = "int(void*, int, void*)"
-_SOCKET_CB_SIG = "int(void*, int, int, void*, void*)"
+    # Cancel the timer anyway, if it's -1, yes, libcurl says it should be cancelled.
+    # If not, to add a new timer, we need to cancel the old timer.
+    if async_curl._timer:
+        async_curl._timer.cancel()  # If already called, cancel does nothing.
+        async_curl._timer = None
 
+    # libcurl says to install a timer which calls socket_action on fire.
+    async_curl._timer = async_curl.loop.call_later(
+        timeout_ms / 1000,
+        async_curl.process_data,
+        CURL_SOCKET_TIMEOUT,  # -1
+        CURL_POLL_NONE,  # 0
+    )
 
-def _make_timer_callback():
-    """Create the timer callback (mirrors curl-cffi's timer_function)."""
+    return 0
 
-    def timer_function(curlm, timeout_ms: int, clientp: Any) -> int:
-        """
-        see: https://curl.se/libcurl/c/CURLMOPT_TIMERFUNCTION.html
-        """
-        async_curl = ffi.from_handle(clientp)
-
-        # Cancel the timer anyway, if it's -1, yes, libcurl says it should be cancelled.
-        # If not, to add a new timer, we need to cancel the old timer.
-        if async_curl._timer:
-            async_curl._timer.cancel()  # If already called, cancel does nothing.
-            async_curl._timer = None
-
-        # libcurl says to install a timer which calls socket_action on fire.
-        async_curl._timer = async_curl.loop.call_later(
-            timeout_ms / 1000,
-            async_curl.process_data,
-            CURL_SOCKET_TIMEOUT,  # -1
-            CURL_POLL_NONE,  # 0
-        )
-
-        return 0
-
-    cb = ffi.callback(_TIMER_CB_SIG, timer_function)
-    _callback_refs.add(cb)
-    return cb
+_timer_callback = ffi.callback("int(void*, int, void*)", _timer_function_impl)
 
 
-def _make_socket_callback():
-    """Create the socket callback (mirrors curl-cffi's socket_function)."""
+def _socket_function_impl(curl, sockfd: int, what: int, clientp: Any, data: Any) -> int:
+    """This callback is called when libcurl decides it's time to interact with certain
+    sockets"""
 
-    def socket_function(curl, sockfd: int, what: int, clientp: Any, data: Any) -> int:
-        """This callback is called when libcurl decides it's time to interact with certain
-        sockets"""
+    async_curl = ffi.from_handle(clientp)
+    loop = async_curl.loop
 
-        async_curl = ffi.from_handle(clientp)
-        loop = async_curl.loop
+    # Always remove and re-add fds
+    if sockfd in async_curl._sockfds:
+        loop.remove_reader(sockfd)
+        loop.remove_writer(sockfd)
 
-        # Always remove and re-add fds
-        if sockfd in async_curl._sockfds:
-            loop.remove_reader(sockfd)
-            loop.remove_writer(sockfd)
+    # Need to read from the socket
+    if what & CURL_POLL_IN:
+        loop.add_reader(sockfd, async_curl.process_data, sockfd, CURL_CSELECT_IN)
+        async_curl._sockfds.add(sockfd)
 
-        # Need to read from the socket
-        if what & CURL_POLL_IN:
-            loop.add_reader(sockfd, async_curl.process_data, sockfd, CURL_CSELECT_IN)
-            async_curl._sockfds.add(sockfd)
+    # Need to write to the socket
+    if what & CURL_POLL_OUT:
+        loop.add_writer(sockfd, async_curl.process_data, sockfd, CURL_CSELECT_OUT)
+        async_curl._sockfds.add(sockfd)
 
-        # Need to write to the socket
-        if what & CURL_POLL_OUT:
-            loop.add_writer(sockfd, async_curl.process_data, sockfd, CURL_CSELECT_OUT)
-            async_curl._sockfds.add(sockfd)
+    # Need to remove the socket
+    if what == CURL_POLL_REMOVE:
+        async_curl._sockfds.remove(sockfd)
 
-        # Need to remove the socket
-        if what == CURL_POLL_REMOVE:
-            async_curl._sockfds.remove(sockfd)
+    return 0
 
-        return 0
-
-    cb = ffi.callback(_SOCKET_CB_SIG, socket_function)
-    _callback_refs.add(cb)
-    return cb
-
-
-# Pre-create callback instances (reusable, kept alive via _callback_refs)
-_timer_callback = _make_timer_callback()
-_socket_callback = _make_socket_callback()
+_socket_callback = ffi.callback("int(void*, int, int, void*, void*)", _socket_function_impl)
 
 
 class AsyncCurl:
@@ -292,7 +263,7 @@ class AsyncCurl:
         if not self._curlm:
             warnings.warn(
                 "Curlm already closed! quitting from process_data",
-                CurlImpyWarning,
+                CurlCffiWarning,
                 stacklevel=2,
             )
             return
@@ -319,7 +290,7 @@ class AsyncCurl:
                 warnings.warn(
                     "Unexpected curl multi state in process_data, "
                     "please open an issue on GitHub\n",
-                    CurlImpyWarning,
+                    CurlCffiWarning,
                     stacklevel=2,
                 )
 
@@ -350,10 +321,10 @@ class AsyncCurl:
     def _check_error(self, errcode: int, *args: Any):
         if errcode == CurlECode.OK:
             return
-        errmsg = lib.curl_multi_strerror(errcode)
+        errmsg = ffi.string(lib.curl_multi_strerror(errcode)).decode("utf-8", "replace")
         action = " ".join([str(a) for a in args])
         raise CurlError(
-            f"Failed in {action}, multi: ({errcode}) {ffi.string(errmsg).decode('utf-8','replace')}. "
+            f"Failed in {action}, multi: ({errcode}) {errmsg}. "
             "See https://curl.se/libcurl/c/libcurl-errors.html first for more "
             "details. Please open an issue on GitHub to help debug this error.",
         )
@@ -368,9 +339,7 @@ class AsyncCurl:
             CurlMOpt.MAX_TOTAL_CONNECTIONS,
             CurlMOpt.MAX_CONCURRENT_STREAMS,
         ):
-            # ABI mode: pass long value directly via ffi.cast
-            # (curl-cffi API mode uses ffi.new("long*", value) which
-            #  relies on the C wrapper to dereference)
+            # ABI: varargs requires long value, not long* pointer
             c_value = ffi.cast("long", int(value))
         else:
             c_value = value

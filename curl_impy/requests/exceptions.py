@@ -11,7 +11,7 @@ from ..curl import CurlError
 
 # Note IOError is an alias of OSError in Python 3.x
 class RequestException(CurlError, OSError):
-    """Base exception for curl_cffi.requests package"""
+    """Base exception for curl_impy.requests package"""
 
     def __init__(
         self,

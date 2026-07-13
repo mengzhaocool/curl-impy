@@ -16,9 +16,8 @@ from typing import TYPE_CHECKING, Any, Final, Literal, Optional, Union, cast, fi
 from urllib.parse import ParseResult, parse_qsl, quote, urlencode, urljoin, urlparse
 
 from ..const import CurlFollow, CurlHttpVersion, CurlOpt, CurlSslVersion
-from ..curl import CURL_WRITEFUNC_ERROR, CurlMime
+from ..curl import CURL_WRITEFUNC_ERROR, CurlMime, impersonate_list
 from ..utils import CurlCffiWarning, HttpVersionLiteral
-from ..fingerprints import Fingerprint, FingerprintManager, NATIVE_IMPERSONATE_TARGETS
 from .cookies import Cookies
 from .exceptions import ImpersonateError, InvalidURL
 from .headers import Headers
@@ -403,7 +402,7 @@ def _normalize_tls_version(version: str) -> CurlSslVersion:
     return lookup[key]
 
 
-NATIVE_TARGET_NAMES = {item["target_name"] for item in NATIVE_IMPERSONATE_TARGETS}
+NATIVE_TARGET_NAMES = set(impersonate_list())
 DEPRECATED_NATIVE_TARGET_ALIASES = {
     "safari15_3",
     "safari15_5",
@@ -416,9 +415,8 @@ DEPRECATED_NATIVE_TARGET_ALIASES = {
 NATIVE_TARGET_NAMES.update(DEPRECATED_NATIVE_TARGET_ALIASES)
 
 
-def _load_named_fingerprint(target: str) -> Optional[Fingerprint]:
-    fingerprints = FingerprintManager.load_fingerprints()
-    return fingerprints.get(target)
+def _load_named_fingerprint(target: str) -> Optional[Any]:
+    return None
 
 
 def _is_native_impersonate_target(target: str) -> bool:
@@ -438,7 +436,7 @@ def _normalize_supported_group(group: str) -> str:
 
 def _apply_fingerprint(
     curl: Curl,
-    fingerprint: Fingerprint,
+    fingerprint: Any,
     existing_header_names: set[str],
     default_headers: bool,
 ) -> None:
@@ -593,7 +591,7 @@ def set_curl_options(
     referer: Optional[str] = None,
     accept_encoding: Optional[str] = "gzip, deflate, br, zstd",
     content_callback: Optional[Callable[..., object]] = None,
-    impersonate: Optional[Union[BrowserTypeLiteral, str, Fingerprint]] = None,
+    impersonate: Optional[Union[BrowserTypeLiteral, str, Any]] = None,
     ja3: Optional[str] = None,
     akamai: Optional[str] = None,
     perk: Optional[str] = None,
@@ -870,25 +868,22 @@ def set_curl_options(
 
     # impersonate
     if impersonate:
-        if isinstance(impersonate, Fingerprint):
-            _apply_fingerprint(c, impersonate, existing_header_names, default_headers)
-        else:
-            if _is_native_impersonate_target(impersonate):
-                normalized = resolve_latest_browser_type(impersonate)
-                ret = c.impersonate(normalized, default_headers=default_headers)  # type: ignore
-                if ret != 0:
-                    raise ImpersonateError(
-                        f"Impersonating {normalized} is not supported"
-                    )
-            else:
-                fingerprint = _load_named_fingerprint(impersonate)
-                if fingerprint is None:
-                    raise ImpersonateError(
-                        f"Impersonating {impersonate} is not supported"
-                    )
-                _apply_fingerprint(
-                    c, fingerprint, existing_header_names, default_headers
+        if _is_native_impersonate_target(impersonate):
+            normalized = resolve_latest_browser_type(impersonate)
+            ret = c.impersonate(normalized, default_headers=default_headers)  # type: ignore
+            if ret != 0:
+                raise ImpersonateError(
+                    f"Impersonating {normalized} is not supported"
                 )
+        else:
+            fingerprint = _load_named_fingerprint(impersonate)
+            if fingerprint is None:
+                raise ImpersonateError(
+                    f"Impersonating {impersonate} is not supported"
+                )
+            _apply_fingerprint(
+                c, fingerprint, existing_header_names, default_headers
+            )
 
     # ja3 string
     if ja3:

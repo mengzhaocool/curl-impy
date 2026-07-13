@@ -32,7 +32,6 @@ if TYPE_CHECKING:
 
     from ..const import CurlHttpVersion
     from ..curl import CurlWsFrame
-    from ..fingerprints import Fingerprint
     from .cookies import CookieTypes
     from .headers import HeaderTypes
     from .impersonate import BrowserTypeLiteral, ExtraFingerprints, ExtraFpDict

@@ -62,8 +62,6 @@ else:
 if TYPE_CHECKING:
     from typing_extensions import Unpack
 
-    from ..fingerprints import Fingerprint
-
     class ProxySpec(TypedDict, total=False):
         all: str
         http: str

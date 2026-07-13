@@ -391,7 +391,7 @@ index a472d6d..8abdf14 100644
  
  #include "easy_lock.h"
  
-@@ -323,6 +326,452 @@ CURLsslset curl_global_sslset(curl_sslbackend id, const char *name,
+@@ -323,6 +326,456 @@ CURLsslset curl_global_sslset(curl_sslbackend id, const char *name,
    return rc;
  }
  
@@ -756,6 +756,10 @@ index a472d6d..8abdf14 100644
 +  int ret;
 +  const struct impersonate_opts *opts = NULL;
 +  struct Curl_easy *_data = (struct Curl_easy *)data;
++
++  if(target == NULL) {
++    return CURLE_BAD_FUNCTION_ARGUMENT;
++  }
 +
 +  opts = binary_search(num_impersonations, target);
 +
